@@ -15,7 +15,9 @@ import {
   Loader2,
   Database,
   X,
-  Zap
+  Zap,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
@@ -33,7 +35,17 @@ import { AuthProvider, useAuth } from '@/src/lib/auth';
 // --- Shared Types & Logic ---
 export const calculateDailyTargets = (profile: { weight?: number | string; height?: number | string; age?: number | string; goal?: string; activityLevel?: string; gender?: string }) => {
   if (!profile || !profile.weight || !profile.height || !profile.age) {
-    return { calories: 2000, water: 2500, protein: 125, carbs: 250, fat: 55 };
+    return { 
+      calories: 2000, 
+      water: 2500, 
+      protein: 125, 
+      carbs: 250, 
+      fat: 55,
+      fiber: 28,
+      sodium: 2300,
+      calcium: 1000,
+      iron: 18
+    };
   }
 
   const { weight, height, age, goal, activityLevel, gender = 'male' } = profile;
@@ -59,17 +71,18 @@ export const calculateDailyTargets = (profile: { weight?: number | string; heigh
   const water = Number(weight) * 35; // 35ml per kg
   
   // Advanced Macro Science ratios based on selected goal
+  // Ratios updated based on standard health guidelines
   let proteinMultiplier: number;
   let fatPercentage: number;
 
   if (goal === 'weight_loss') {
-    proteinMultiplier = 2.2; // High protein to preserve LBM during cut
+    proteinMultiplier = 2.0; // High protein for satiety during cut
     fatPercentage = 0.25;
   } else if (goal === 'muscle_gain') {
-    proteinMultiplier = 1.8;
-    fatPercentage = 0.20; // Lower fat, higher carbs for insulin/performance
+    proteinMultiplier = 2.2; // Maximum muscle synthesis
+    fatPercentage = 0.20;
   } else {
-    proteinMultiplier = 1.6;
+    proteinMultiplier = 1.2; // RDA is 0.8, but 1.2 is healthy for active adults
     fatPercentage = 0.30;
   }
 
@@ -77,12 +90,22 @@ export const calculateDailyTargets = (profile: { weight?: number | string; heigh
   const fat = (tdee * fatPercentage) / 9;
   const carbs = (tdee - (protein * 4) - (fat * 9)) / 4;
 
+  // Micro-nutrient targets (RDIs)
+  const fiber = (tdee / 1000) * 14; // 14g per 1000kcal
+  const sodium = 2300; // Standard max
+  const calcium = Number(age) >= 50 ? 1200 : 1000;
+  const iron = gender === 'female' && Number(age) < 50 ? 18 : 8;
+
   return {
     calories: Math.round(tdee),
     water: Math.round(water),
     protein: Math.round(protein),
     carbs: Math.round(carbs),
-    fat: Math.round(fat)
+    fat: Math.round(fat),
+    fiber: Math.round(fiber),
+    sodium,
+    calcium,
+    iron
   };
 };
 
@@ -132,6 +155,10 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
   const totalCarbs = mealLogs.reduce((acc, current) => acc + (Number(current.carbs || current.macroBreakdown?.carbs || current.macro_breakdown?.carbs || 0)), 0);
   const totalFat = mealLogs.reduce((acc, current) => acc + (Number(current.fat || current.macroBreakdown?.fat || current.macro_breakdown?.fat || 0)), 0);
   
+  const totalFiber = mealLogs.reduce((acc, current) => acc + (Number(current.fiber || 0)), 0);
+  const totalCalcium = mealLogs.reduce((acc, current) => acc + (Number(current.calcium || 0)), 0);
+  const totalIron = mealLogs.reduce((acc, current) => acc + (Number(current.iron || 0)), 0);
+  
   const totalWater = waterLogs.reduce((acc, current) => acc + (current.amountMl || 0), 0);
   
   const targets = calculateDailyTargets(profile);
@@ -140,6 +167,9 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
   const proteinTarget = targets.protein;
   const carbsTarget = targets.carbs;
   const fatTarget = targets.fat;
+  const ironTarget = targets.iron;
+  const calciumTarget = targets.calcium;
+  const fiberTarget = targets.fiber;
 
   const remainingCalories = Math.max(0, calorieTarget - totalCalories);
 
@@ -271,27 +301,28 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="bg-[#181E04] border-none rounded-[32px] p-6 relative overflow-hidden shadow-2xl group active:scale-95 transition-all cursor-pointer">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Zap size={64} className="text-white" />
-              </div>
-              <div className="flex justify-between items-start mb-6 relative z-10">
+            <Card className="bg-[#181E04] border-none rounded-[32px] p-6 relative overflow-hidden shadow-2xl group active:scale-95 transition-all cursor-pointer h-full">
+              <div className="flex justify-between items-start mb-4 relative z-10">
                 <div className="bg-white/10 p-3 rounded-2xl">
-                  <Activity size={20} className="text-primary" />
+                  <Zap size={20} className="text-primary" />
                 </div>
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/30 italic">Live Score</span>
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/30 italic">Bio-Stats</span>
               </div>
-              <div className="space-y-1 relative z-10">
-                <div className="text-3xl font-black text-white tracking-tighter">{healthScore}<span className="text-[10px] uppercase font-bold opacity-40 ml-1">%</span></div>
-                <div className="text-[9px] font-bold uppercase text-white/60 tracking-widest opacity-80">Health Score</div>
-              </div>
-              
-              <div className="mt-4 h-1 w-full bg-white/10 rounded-full overflow-hidden relative">
-                <motion.div 
-                  className="absolute inset-0 bg-primary/40"
-                  animate={{ left: ['-100%', '100%'] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                />
+              <div className="space-y-4 relative z-10">
+                 <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-xl font-black text-white tracking-tighter">{totalCalcium}<span className="text-[8px] uppercase font-bold opacity-40 ml-1">mg</span></div>
+                      <div className="text-[8px] font-bold uppercase text-white/60 tracking-widest">Calcium</div>
+                    </div>
+                    <div className="text-[8px] text-primary font-bold">{Math.round((totalCalcium/calciumTarget)*100)}%</div>
+                 </div>
+                 <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-xl font-black text-white tracking-tighter">{totalIron}<span className="text-[8px] uppercase font-bold opacity-40 ml-1">mg</span></div>
+                      <div className="text-[8px] font-bold uppercase text-white/60 tracking-widest">Iron</div>
+                    </div>
+                    <div className="text-[8px] text-primary font-bold">{Math.round((totalIron/ironTarget)*100)}%</div>
+                 </div>
               </div>
             </Card>
           </motion.div>
@@ -637,10 +668,13 @@ const HealthSetupTab = () => {
         </Card>
       </div>
 
-      <div className="px-1 grid grid-cols-3 gap-3">
+      <div className="px-1 grid grid-cols-2 gap-3">
         <MacroGoal label="Proteins" value={liveTargets.protein} suffix="G" color="bg-blue-500" />
         <MacroGoal label="Carbs" value={liveTargets.carbs} suffix="G" color="bg-amber-500" />
         <MacroGoal label="Fats" value={liveTargets.fat} suffix="G" color="bg-red-500" />
+        <MacroGoal label="Fiber" value={liveTargets.fiber} suffix="G" color="bg-emerald-500" />
+        <MacroGoal label="Calcium" value={liveTargets.calcium} suffix="mg" color="bg-indigo-500" />
+        <MacroGoal label="Iron" value={liveTargets.iron} suffix="mg" color="bg-rose-500" />
       </div>
 
       <div className="space-y-3 px-1">
@@ -746,6 +780,8 @@ const HealthSetupTab = () => {
         </CardContent>
       </Card>
 
+      <InstallAppSection />
+
       <Card className="border-none bg-accent/20 rounded-[32px] overflow-hidden shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-white rounded-2xl">
@@ -764,6 +800,83 @@ const HealthSetupTab = () => {
         </div>
       </Card>
     </div>
+  );
+};
+
+const InstallAppSection = () => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIos, setIsIos] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIos(isIosDevice);
+
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    setIsStandalone(isStandaloneMode);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
+  if (isStandalone) return null;
+
+  return (
+    <Card className="border-none bg-primary/10 rounded-[40px] overflow-hidden shadow-[0_20px_50px_-20px_rgba(184,119,57,0.2)] p-8 space-y-6">
+      <div className="flex items-center gap-4">
+        <div className="p-4 bg-white rounded-[24px] shadow-sm">
+          <Download className="text-primary" size={28} />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-lg font-black text-[#181E04] tracking-tight">Install App</h3>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none opacity-60">Mobile Experience</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {deferredPrompt ? (
+          <Button 
+            onClick={handleInstall} 
+            className="w-full bg-primary text-white rounded-[24px] h-16 text-md font-black shadow-[0_15px_30px_-5px_rgba(184,119,57,0.3)] hover:bg-primary/90 transition-all active:scale-95"
+          >
+            Install on device
+          </Button>
+        ) : isIos ? (
+          <div className="bg-white/60 backdrop-blur-sm p-6 rounded-[28px] border border-white/40 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Smartphone size={16} className="text-primary" />
+              <p className="text-xs font-black text-[#181E04] uppercase tracking-tight">Safari Instructions</p>
+            </div>
+            <ol className="text-[11px] text-muted-foreground space-y-2 ml-4 list-decimal font-bold">
+              <li>Tap the <span className="text-primary">"Share"</span> icon in Safari</li>
+              <li>Select <span className="text-primary">"Add to Home Screen"</span></li>
+            </ol>
+          </div>
+        ) : (
+          <div className="bg-white/40 backdrop-blur-sm p-6 rounded-[28px] border border-white/20">
+            <p className="text-[11px] font-black text-[#181E04]/60 uppercase tracking-widest text-center leading-relaxed">
+              Open your browser menu and select <br/>
+              <span className="text-primary">"Install App"</span> or <span className="text-primary">"Add to Home Screen"</span>
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 };
 

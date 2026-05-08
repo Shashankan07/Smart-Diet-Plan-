@@ -1,0 +1,6 @@
+{
+	"appId": "com.nutrisense.ai",
+	"appName": "NutriSense AI",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}

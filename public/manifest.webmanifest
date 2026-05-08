@@ -1,0 +1,17 @@
+{
+  "name": "NutriSense AI",
+  "short_name": "NutriSense",
+  "description": "Smart AI nutrition and health tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FDFCFB",
+  "theme_color": "#B87739",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2927/2927347.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

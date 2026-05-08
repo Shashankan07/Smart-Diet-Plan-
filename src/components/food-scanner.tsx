@@ -34,6 +34,12 @@ interface ScanResult {
     sugar?: number | string;
     sodium?: number | string;
   };
+  micronutrients?: {
+    calcium?: number | string;
+    iron?: number | string;
+    potassium?: number | string;
+    sodium?: number | string;
+  };
 }
 
 export function FoodScanner({ onComplete }: { onComplete: () => void }) {
@@ -70,6 +76,7 @@ export function FoodScanner({ onComplete }: { onComplete: () => void }) {
     setLoading(true);
     try {
       const macros = result.macro_breakdown || result.macroBreakdown || {};
+      const micros = result.micronutrients || {};
       await addDoc(collection(db, 'mealLogs'), {
         userId: user.uid,
         foodName: result.food_name || result.foodName,
@@ -79,7 +86,10 @@ export function FoodScanner({ onComplete }: { onComplete: () => void }) {
         fat: Number(macros.fat || 0),
         fiber: Number(macros.fiber || 0),
         sugar: Number(macros.sugar || 0),
-        sodium: Number(macros.sodium || 0),
+        sodium: Number(micros.sodium || macros.sodium || 0),
+        calcium: Number(micros.calcium || 0),
+        iron: Number(micros.iron || 0),
+        potassium: Number(micros.potassium || 0),
         mealType: 'snack', // Default, can be improved
         timestamp: serverTimestamp(),
         manual: false

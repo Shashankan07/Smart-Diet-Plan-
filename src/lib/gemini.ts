@@ -20,10 +20,13 @@ export async function analyzeMealImage(base64Image: string) {
   1. Food name (English & Local if possible)
   2. Estimated portion size (g or ml)
   3. Estimated calories
-  4. Detailed Macro breakdown (protein, carbs, fat, fiber, sugar, sodium) in grams or mg
+  4. Detailed nutritional breakdown:
+     - Macros: protein (g), carbs (g), fat (g)
+     - Fiber (g), sugar (g)
+     - Micros (Crucial): sodium (mg), calcium (mg), iron (mg), potassium (mg)
   5. Healthiness score (1-10)
   6. Key benefits or warnings (e.g., high sodium, good protein source)
-  Return as a valid JSON object with snake_case keys (food_name, estimated_calories, macro_breakdown, etc).`;
+  Return as a valid JSON object with snake_case keys (food_name, estimated_calories, macro_breakdown, micronutrients, etc).`;
 
   const response = await getAI().models.generateContent({
     model: nutritionModel,
@@ -41,7 +44,7 @@ export async function analyzeMealImage(base64Image: string) {
 
 export async function getFoodNutritionFromAI(foodName: string) {
   const prompt = `Analyze this food item: "${foodName}". 
-  Provide accurate nutritional information.
+  Provide accurate nutritional information including micronutrients.
   Return as a valid JSON object with these keys:
   {
     "name": string,
@@ -52,6 +55,9 @@ export async function getFoodNutritionFromAI(foodName: string) {
     "fiber": number,
     "sugar": number,
     "sodium": number,
+    "calcium": number (mg),
+    "iron": number (mg),
+    "potassium": number (mg),
     "serving_size": string,
     "gi": "Low" | "Medium" | "High",
     "local_name": string

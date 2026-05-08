@@ -25,6 +25,8 @@ interface FoodItem {
   fiber?: number;
   sugar?: number;
   sodium?: number;
+  calcium?: number;
+  iron?: number;
   potassium?: number;
   gi?: string;
   serving_size?: string;
@@ -112,6 +114,9 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
         fiber: Math.round(Number(food.fiber || 0) * multiplier),
         sugar: Math.round(Number(food.sugar || 0) * multiplier),
         sodium: Math.round(Number(food.sodium || 0) * multiplier),
+        calcium: Math.round(Number(food.calcium || 0) * multiplier),
+        iron: Math.round(Number(food.iron || 0) * multiplier),
+        potassium: Math.round(Number(food.potassium || 0) * multiplier),
         mealType: mealCategory,
         servingSize: customServingSize || food.serving_size || food.servingSize,
         quantity: quantity,
