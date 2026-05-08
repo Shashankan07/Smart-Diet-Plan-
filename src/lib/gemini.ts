@@ -1,6 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined in environment variables");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 export const nutritionModel = "gemini-3-flash-preview";
 
@@ -14,7 +25,7 @@ export async function analyzeMealImage(base64Image: string) {
   6. Key benefits or warnings (e.g., high sodium, good protein source)
   Return as a valid JSON object with snake_case keys (food_name, estimated_calories, macro_breakdown, etc).`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAI().models.generateContent({
     model: nutritionModel,
     contents: [{
       parts: [
@@ -46,7 +57,7 @@ export async function getFoodNutritionFromAI(foodName: string) {
     "local_name": string
   }`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAI().models.generateContent({
     model: nutritionModel,
     contents: [{ parts: [{ text: prompt }] }],
     config: { responseMimeType: "application/json" }
@@ -60,7 +71,7 @@ export async function getDietCoachResponse(message: string, userHealthProfile: R
   User Health Stats: ${JSON.stringify(userHealthProfile)}.
   Be professional, encouraging, and science-based.`;
 
-  const chat = ai.chats.create({
+  const chat = getAI().chats.create({
     model: nutritionModel,
     config: { systemInstruction },
     history: chatHistory.map(m => ({
