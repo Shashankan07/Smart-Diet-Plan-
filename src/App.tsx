@@ -10,13 +10,10 @@ import {
   Droplet, 
   Plus, 
   User as UserIcon, 
-  Settings, 
   ChefHat, 
   Camera, 
   MessageSquare,
   ChevronRight,
-  TrendingUp,
-  Award,
   Loader2,
   Database,
   X,
@@ -27,16 +24,11 @@ import { nutritionModel } from '@/src/lib/gemini';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 // --- Shared Types & Logic ---
-export const calculateDailyTargets = (profile: any) => {
+export const calculateDailyTargets = (profile: { weight?: number | string; height?: number | string; age?: number | string; goal?: string; activityLevel?: string; gender?: string }) => {
   if (!profile || !profile.weight || !profile.height || !profile.age) {
     return { calories: 2000, water: 2500, protein: 125, carbs: 250, fat: 55 };
   }
@@ -48,13 +40,13 @@ export const calculateDailyTargets = (profile: any) => {
   bmr = gender === 'male' ? bmr + 5 : bmr - 161;
 
   // Activity Multiplier
-  const multipliers: any = {
+  const multipliers = {
     sedentary: 1.2,
     light: 1.375,
     moderate: 1.55,
     active: 1.725
   };
-  const multiplier = multipliers[activityLevel] || 1.2;
+  const multiplier = (multipliers as Record<string, number>)[activityLevel as string] || 1.2;
   let tdee = bmr * multiplier;
 
   // Goal Adjustments
@@ -64,8 +56,8 @@ export const calculateDailyTargets = (profile: any) => {
   const water = Number(weight) * 35; // 35ml per kg
   
   // Advanced Macro Science ratios based on selected goal
-  let proteinMultiplier = 1.8; // default
-  let fatPercentage = 0.25; // default
+  let proteinMultiplier: number;
+  let fatPercentage: number;
 
   if (goal === 'weight_loss') {
     proteinMultiplier = 2.2; // High protein to preserve LBM during cut
@@ -96,10 +88,10 @@ import { ManualFoodLog } from '@/src/components/manual-food-log';
 // --- Dashboard Component ---
 const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => {
   const { user, profile } = useAuth();
-  const [mealLogs, setMealLogs] = useState<any[]>([]);
-  const [waterLogs, setWaterLogs] = useState<any[]>([]);
+  const [mealLogs, setMealLogs] = useState<{ id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: any; manual?: boolean; macroBreakdown?: any; macro_breakdown?: any }[]>([]);
+  const [waterLogs, setWaterLogs] = useState<{ id: string; amountMl: number }[]>([]);
   const [showManualLog, setShowManualLog] = useState(false);
-  const clickTimer = React.useRef<any>(null);
+  const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
 
   const handleWaterClick = () => {
     if (clickTimer.current) {
@@ -359,7 +351,7 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
   );
 };
 
-const MacroArc = ({ label, current, target, color }: any) => {
+const MacroArc = ({ label, current, target, color }: { label: string; current: number; target: number; color: string }) => {
   const percent = Math.min(1, current / target);
   return (
     <div className="bg-white px-3 py-2 rounded-2xl border border-border/60 shadow-xl flex items-center gap-2.5">
@@ -499,7 +491,7 @@ export default function App() {
 import { FoodScanner } from '@/src/components/food-scanner';
 
 function AppContent() {
-  const { user, loading, profile } = useAuth();
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [showScanner, setShowScanner] = useState(false);
 
@@ -775,7 +767,7 @@ const HealthSetupTab = () => {
   );
 };
 
-const MacroGoal = ({ label, value, suffix, color }: any) => (
+const MacroGoal = ({ label, value, suffix, color }: { label: string; value: number; suffix: string; color: string }) => (
   <Card className="bg-white border-none rounded-2xl p-3 shadow-sm flex flex-col items-center">
     <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter mb-1">{label}</span>
     <div className="flex items-center gap-1">
@@ -804,7 +796,7 @@ const SyncItem = ({ label, status }: { label: string; status: 'connected' | 'dis
   </div>
 );
 
-const NavButton = ({ active, onClick, icon, label }: any) => (
+const NavButton = ({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) => (
   <button 
     onClick={onClick}
     className={cn(

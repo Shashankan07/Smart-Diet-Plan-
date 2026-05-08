@@ -1,19 +1,45 @@
 import React, { useState } from 'react';
-import { Camera, Upload, X, Loader2, Apple, CheckCircle2 } from 'lucide-react';
+import { Camera, X, Loader2, Apple, CheckCircle2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
+import { motion } from 'motion/react';
+import { useAuth } from '@/src/components/auth-provider';
 import { analyzeMealImage } from '@/src/lib/gemini';
 import { db, handleFirestoreError, OperationType } from '@/src/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '@/src/components/auth-provider';
-import { motion, AnimatePresence } from 'motion/react';
+
+interface ScanResult {
+  food_name?: string;
+  foodName?: string;
+  estimated_calories?: number | string;
+  estimatedCalories?: number | string;
+  healthiness_score?: number;
+  healthinessScore?: number;
+  estimated_portion_size?: string;
+  estimatedPortionSize?: string;
+  macro_breakdown?: {
+    protein?: number | string;
+    carbs?: number | string;
+    fat?: number | string;
+    fiber?: number | string;
+    sugar?: number | string;
+    sodium?: number | string;
+  };
+  macroBreakdown?: {
+    protein?: number | string;
+    carbs?: number | string;
+    fat?: number | string;
+    fiber?: number | string;
+    sugar?: number | string;
+    sodium?: number | string;
+  };
+}
 
 export function FoodScanner({ onComplete }: { onComplete: () => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ScanResult | null>(null);
   const { user } = useAuth();
 
   const handleCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +191,7 @@ export function FoodScanner({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-const MacroItem = ({ label, value, color }: any) => (
+const MacroItem = ({ label, value, color }: { label: string; value?: number | string; color: string }) => (
   <div className="flex flex-col items-center">
     <div className="text-sm font-bold">{value || '0'}g</div>
     <div className="flex items-center gap-1">

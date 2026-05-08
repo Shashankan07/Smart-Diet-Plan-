@@ -1,85 +1,74 @@
 {
   "entities": {
     "User": {
-      "title": "User",
-      "description": "Basic user account information",
+      "title": "User Profile",
+      "description": "Unified user profile containing both account info and health metrics.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "subscriptionStatus": { "type": "string", "enum": ["free", "premium", "pro"] }
+        "age": { "type": "number" },
+        "weight": { "type": "number" },
+        "height": { "type": "number" },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "goal": { "type": "string", "enum": ["weight_loss", "maintenance", "muscle_gain"] },
+        "activityLevel": { "type": "string", "enum": ["sedentary", "light", "moderate", "active"] },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "subscriptionStatus": { "type": "string" }
       },
       "required": ["uid", "email"]
     },
-    "HealthProfile": {
-      "title": "Health Profile",
-      "description": "User's health metrics and dietary preferences",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "age": { "type": "integer" },
-        "gender": { "type": "string" },
-        "weight": { "type": "number" },
-        "height": { "type": "number" },
-        "activityLevel": { "type": "string" },
-        "goal": { "type": "string" },
-        "dietaryPreferences": { "type": "array", "items": { "type": "string" } },
-        "allergies": { "type": "array", "items": { "type": "string" } },
-        "conditions": { "type": "array", "items": { "type": "string" } }
-      }
-    },
     "MealLog": {
       "title": "Meal Log",
-      "description": "Recording of a meal consumed by the user",
+      "description": "Log of consumed food.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "foodId": { "type": "string" },
         "foodName": { "type": "string" },
         "calories": { "type": "number" },
-        "macros": {
-          "type": "object",
-          "properties": {
-            "protein": { "type": "number" },
-            "carbs": { "type": "number" },
-            "fat": { "type": "number" }
-          }
-        },
-        "loggedAt": { "type": "string", "format": "date-time" },
-        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "snack", "dinner"] },
-        "portionSize": { "type": "number" }
-      }
+        "protein": { "type": "number" },
+        "carbs": { "type": "number" },
+        "fat": { "type": "number" },
+        "fiber": { "type": "number" },
+        "sugar": { "type": "number" },
+        "sodium": { "type": "number" },
+        "mealType": { "type": "string" },
+        "servingSize": { "type": "string" },
+        "quantity": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "manual": { "type": "boolean" },
+        "aiGenerated": { "type": "boolean" },
+        "cuisine": { "type": "string" }
+      },
+      "required": ["userId", "foodName", "calories", "timestamp"]
     },
     "WaterLog": {
       "title": "Water Log",
-      "description": "Water intake for the day",
+      "description": "Log of water intake.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "amountMl": { "type": "number" },
         "loggedAt": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["userId", "amountMl", "loggedAt"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
-      "description": "Individual user profiles"
-    },
-    "healthProfiles/{userId}": {
-      "schema": "HealthProfile",
-      "description": "Health data mapped to users"
+      "description": "User profile data."
     },
     "mealLogs/{logId}": {
       "schema": "MealLog",
-      "description": "Historical meal logs"
+      "description": "Meal logs for all users."
     },
     "waterLogs/{logId}": {
       "schema": "WaterLog",
-      "description": "Historical water logs"
+      "description": "Water logs for all users."
     }
   }
 }

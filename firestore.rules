@@ -1,12 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
+    // Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- Helpers ---
+    // Global Helpers
     function isSignedIn() {
       return request.auth != null;
     }
@@ -27,61 +27,62 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // --- Validation Blueprints ---
-    
+    // Entity Validations
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email']) &&
              data.uid == request.auth.uid &&
-             data.email is string && data.email.size() <= 256;
-    }
-
-    function isValidHealthProfile(data) {
-      return data.userId == request.auth.uid &&
-             data.age is int && data.age >= 0 && data.age <= 120 &&
-             data.weight is number && data.height is number;
+             data.email is string && data.email.size() <= 100 &&
+             (!('age' in data) || (data.age is number && data.age >= 0 && data.age <= 150)) &&
+             (!('weight' in data) || (data.weight is number && data.weight >= 0 && data.weight <= 500)) &&
+             (!('height' in data) || (data.height is number && data.height >= 0 && data.height <= 300)) &&
+             (!('gender' in data) || (data.gender in ['male', 'female'])) &&
+             (!('goal' in data) || (data.goal in ['weight_loss', 'maintenance', 'muscle_gain'])) &&
+             (!('activityLevel' in data) || (data.activityLevel in ['sedentary', 'light', 'moderate', 'active']));
     }
 
     function isValidMealLog(data) {
-      return data.userId == request.auth.uid &&
+      return data.keys().hasAll(['userId', 'foodName', 'calories', 'timestamp']) &&
+             data.userId == request.auth.uid &&
              data.foodName is string && data.foodName.size() <= 200 &&
-             data.calories is number && data.calories >= 0;
+             data.calories is number && data.calories >= 0 && data.calories <= 10000 &&
+             data.timestamp == request.time &&
+             (!('protein' in data) || (data.protein is number && data.protein >= 0)) &&
+             (!('carbs' in data) || (data.carbs is number && data.carbs >= 0)) &&
+             (!('fat' in data) || (data.fat is number && data.fat >= 0)) &&
+             (!('servingSize' in data) || (data.servingSize is string && data.servingSize.size() <= 100));
     }
 
-    // --- Collections ---
+    function isValidWaterLog(data) {
+      return data.keys().hasAll(['userId', 'amountMl', 'loggedAt']) &&
+             data.userId == request.auth.uid &&
+             data.amountMl is number && data.amountMl >= -5000 && data.amountMl <= 5000 &&
+             data.loggedAt == request.time;
+    }
 
+    // Collection Rules
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && 
-                      isValidUser(incoming()) && 
-                      incoming().uid == existing().uid;
-    }
-
-    match /healthProfiles/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidHealthProfile(incoming());
-      allow update: if isOwner(userId) && 
-                      isValidHealthProfile(incoming()) &&
-                      incoming().userId == existing().userId;
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'age', 'weight', 'height', 'gender', 'goal', 'activityLevel', 
+          'updatedAt', 'lastLogin', 'subscriptionStatus', 'displayName', 'photoURL'
+        ])
+      );
     }
 
     match /mealLogs/{logId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidMealLog(incoming());
-      allow update: if isSignedIn() && 
-                      resource.data.userId == request.auth.uid && 
-                      isValidMealLog(incoming()) &&
-                      incoming().userId == existing().userId;
+      allow update: if false; // Logs are immutable normally
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     match /waterLogs/{logId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidWaterLog(incoming());
+      allow delete: if false;
     }
   }
 }

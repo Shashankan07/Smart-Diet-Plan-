@@ -55,7 +55,7 @@ export async function getFoodNutritionFromAI(foodName: string) {
   return JSON.parse(response.text || "{}");
 }
 
-export async function getDietCoachResponse(message: string, userHealthProfile: any, chatHistory: any[]) {
+export async function getDietCoachResponse(message: string, userHealthProfile: Record<string, any>, chatHistory: { role: string; text: string }[]) {
   const systemInstruction = `You are NutriSense AI, a helpful diet and nutrition coach. 
   User Health Stats: ${JSON.stringify(userHealthProfile)}.
   Be professional, encouraging, and science-based.`;

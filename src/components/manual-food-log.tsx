@@ -1,15 +1,36 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, X, ListFilter, Flame, Zap, Database, Mic, MicOff, Sparkles, Loader2, ChevronLeft } from 'lucide-react';
+import { Search, Plus, Minus, X, Database, Mic, MicOff, Sparkles, Loader2, ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { FOOD_DATABASE, FoodItem } from '@/src/data/food-database';
+import { FOOD_DATABASE } from '@/src/data/food-database';
 import { db, handleFirestoreError, OperationType } from '@/src/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/src/components/auth-provider';
 import { cn } from '@/lib/utils';
 import { getFoodNutritionFromAI } from '@/src/lib/gemini';
+
+interface FoodItem {
+  id?: string;
+  name: string;
+  localName: string;
+  cuisine: string;
+  category: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+  potassium?: number;
+  gi?: string;
+  serving_size?: string;
+  aiGenerated?: boolean;
+  local_name?: string;
+}
 
 export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: boolean; onClose?: () => void; embedded?: boolean }) => {
   const { user } = useAuth();
@@ -17,8 +38,8 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<any>(null);
-  const [selectedFood, setSelectedFood] = useState<any>(null);
+  const [aiResult, setAiResult] = useState<FoodItem | null>(null);
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [customServingSize, setCustomServingSize] = useState("");
   const [mealCategory, setMealCategory] = useState<string>("Lunch");
@@ -59,7 +80,7 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
     });
   }, [searchQuery, selectedCategory]);
 
-  const handleLog = async (food: any, isAI = false) => {
+  const handleLog = async (food: FoodItem, isAI = false) => {
     if (!user) return;
     
     // Calculate final nutrients based on quantity
@@ -92,7 +113,7 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
     }
   };
 
-  const selectFoodForLogging = (food: any) => {
+  const selectFoodForLogging = (food: FoodItem) => {
     setSelectedFood(food);
     setQuantity(1);
     setCustomServingSize(food.servingSize || food.serving_size || "");
@@ -420,7 +441,7 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
   );
 };
 
-const MacroBadgeCompact = ({ label, value, color }: any) => (
+const MacroBadgeCompact = ({ label, value, color }: { label: string; value: number | string; color: string }) => (
   <div className="flex items-center gap-1">
     <span className="text-[7px] font-black uppercase opacity-40">{label}:</span>
     <span className={cn("text-[10px] font-bold", color)}>{value}g</span>
