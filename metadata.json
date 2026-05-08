@@ -1,0 +1,6 @@
+{
+  "name": "NutriSense AI",
+  "description": "Personalized AI nutrition assistant providing 100% personalized diet plans, food recognition, and expert coaching.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["AI Food Scanning", "Personalized Meal Planning", "Real-time Nutrition Tracking"]
+}

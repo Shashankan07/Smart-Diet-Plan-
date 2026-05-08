@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Basic user account information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "subscriptionStatus": { "type": "string", "enum": ["free", "premium", "pro"] }
+      },
+      "required": ["uid", "email"]
+    },
+    "HealthProfile": {
+      "title": "Health Profile",
+      "description": "User's health metrics and dietary preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "age": { "type": "integer" },
+        "gender": { "type": "string" },
+        "weight": { "type": "number" },
+        "height": { "type": "number" },
+        "activityLevel": { "type": "string" },
+        "goal": { "type": "string" },
+        "dietaryPreferences": { "type": "array", "items": { "type": "string" } },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "conditions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "MealLog": {
+      "title": "Meal Log",
+      "description": "Recording of a meal consumed by the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "foodId": { "type": "string" },
+        "foodName": { "type": "string" },
+        "calories": { "type": "number" },
+        "macros": {
+          "type": "object",
+          "properties": {
+            "protein": { "type": "number" },
+            "carbs": { "type": "number" },
+            "fat": { "type": "number" }
+          }
+        },
+        "loggedAt": { "type": "string", "format": "date-time" },
+        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "snack", "dinner"] },
+        "portionSize": { "type": "number" }
+      }
+    },
+    "WaterLog": {
+      "title": "Water Log",
+      "description": "Water intake for the day",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amountMl": { "type": "number" },
+        "loggedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Individual user profiles"
+    },
+    "healthProfiles/{userId}": {
+      "schema": "HealthProfile",
+      "description": "Health data mapped to users"
+    },
+    "mealLogs/{logId}": {
+      "schema": "MealLog",
+      "description": "Historical meal logs"
+    },
+    "waterLogs/{logId}": {
+      "schema": "WaterLog",
+      "description": "Historical water logs"
+    }
+  }
+}

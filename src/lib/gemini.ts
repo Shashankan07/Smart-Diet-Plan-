@@ -1,0 +1,74 @@
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+
+export const nutritionModel = "gemini-3-flash-preview";
+
+export async function analyzeMealImage(base64Image: string) {
+  const prompt = `Analyze this food image. Provide:
+  1. Food name (English & Local if possible)
+  2. Estimated portion size (g or ml)
+  3. Estimated calories
+  4. Detailed Macro breakdown (protein, carbs, fat, fiber, sugar, sodium) in grams or mg
+  5. Healthiness score (1-10)
+  6. Key benefits or warnings (e.g., high sodium, good protein source)
+  Return as a valid JSON object with snake_case keys (food_name, estimated_calories, macro_breakdown, etc).`;
+
+  const response = await ai.models.generateContent({
+    model: nutritionModel,
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+      ]
+    }],
+    config: { responseMimeType: "application/json" }
+  });
+
+  return JSON.parse(response.text || "{}");
+}
+
+export async function getFoodNutritionFromAI(foodName: string) {
+  const prompt = `Analyze this food item: "${foodName}". 
+  Provide accurate nutritional information.
+  Return as a valid JSON object with these keys:
+  {
+    "name": string,
+    "calories": number,
+    "protein": number,
+    "carbs": number,
+    "fat": number,
+    "fiber": number,
+    "sugar": number,
+    "sodium": number,
+    "serving_size": string,
+    "gi": "Low" | "Medium" | "High",
+    "local_name": string
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: nutritionModel,
+    contents: [{ parts: [{ text: prompt }] }],
+    config: { responseMimeType: "application/json" }
+  });
+
+  return JSON.parse(response.text || "{}");
+}
+
+export async function getDietCoachResponse(message: string, userHealthProfile: any, chatHistory: any[]) {
+  const systemInstruction = `You are NutriSense AI, a helpful diet and nutrition coach. 
+  User Health Stats: ${JSON.stringify(userHealthProfile)}.
+  Be professional, encouraging, and science-based.`;
+
+  const chat = ai.chats.create({
+    model: nutritionModel,
+    config: { systemInstruction },
+    history: chatHistory.map(m => ({
+      role: m.role === 'ai' ? 'model' : 'user',
+      parts: [{ text: m.text }]
+    }))
+  });
+
+  const response = await chat.sendMessage({ message });
+  return response.text;
+}
