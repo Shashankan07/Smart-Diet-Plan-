@@ -272,26 +272,49 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
               onClick={() => handleWaterClick()}
               className="bg-white/80 backdrop-blur-md border border-accent/20 rounded-[32px] p-6 relative overflow-hidden shadow-xl shadow-primary/5 group active:scale-95 transition-all cursor-pointer"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className="bg-primary/5 p-3 rounded-2xl group-hover:bg-primary/10 transition-colors">
-                  <Droplet size={20} className="text-primary" />
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-black tracking-[0.2em] uppercase text-primary/30">H2O</span>
-                  <Plus size={12} className="text-primary mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-3xl font-black text-foreground tracking-tighter">{totalWater}<span className="text-[10px] uppercase font-bold opacity-30 ml-1">ml</span></div>
-                <div className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest opacity-60 italic">Goal {waterTarget}ml</div>
-              </div>
-              <div className="mt-4 h-1 w-full bg-accent/20 rounded-full overflow-hidden">
+              {/* Water Filling Animation */}
+              <motion.div 
+                className="absolute bottom-0 left-0 right-0 bg-blue-500/20 pointer-events-none"
+                initial={{ height: 0 }}
+                animate={{ height: `${Math.min(100, (totalWater/waterTarget)*100)}%` }}
+                transition={{ type: "spring", damping: 20, stiffness: 40 }}
+              >
                 <motion.div 
-                  className="h-full bg-primary"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, (totalWater/waterTarget)*100)}%` }}
-                  transition={{ duration: 1 }}
+                  className="absolute top-0 left-[-50%] w-[200%] h-8 bg-blue-500/10"
+                  animate={{ 
+                    x: ["0%", "50%"],
+                    rotate: [0, 2, -2, 0]
+                  }}
+                  transition={{ 
+                    x: { repeat: Infinity, duration: 4, ease: "linear" },
+                    rotate: { repeat: Infinity, duration: 2, ease: "easeInOut" }
+                  }}
+                  style={{ 
+                    borderRadius: "40% 45% 42% 48%",
+                    transform: "translateY(-50%)"
+                  }}
                 />
+              </motion.div>
+
+              <div className="relative z-10">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="bg-blue-50 p-3 rounded-2xl group-hover:bg-blue-100 transition-colors">
+                    <Droplet size={20} className="text-blue-500" />
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black tracking-[0.2em] uppercase text-blue-500/30">H2O</span>
+                    <Plus size={12} className="text-blue-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-3xl font-black text-foreground tracking-tighter">
+                    {totalWater}
+                    <span className="text-[10px] uppercase font-bold opacity-30 ml-1">ml</span>
+                  </div>
+                  <div className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest opacity-60 italic">
+                    Goal {waterTarget}ml
+                  </div>
+                </div>
               </div>
             </Card>
           </motion.div>
