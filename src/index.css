@@ -10,7 +10,6 @@
 
 @layer base {
   body {
-    @apply text-zinc-100 bg-zinc-950;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

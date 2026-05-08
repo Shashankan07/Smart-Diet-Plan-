@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { FOOD_DATABASE } from '@/src/data/food-database';
 import { db, handleFirestoreError, OperationType } from '@/src/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '@/src/components/auth-provider';
+import { useAuth } from '@/src/lib/auth';
 import { cn } from '@/lib/utils';
 import { getFoodNutritionFromAI } from '@/src/lib/gemini';
 
@@ -46,7 +46,22 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
   const lastAutoSearchQuery = useRef('');
 
   const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    interface SpeechRecognitionConstructor {
+      new(): {
+        continuous: boolean;
+        interimResults: boolean;
+        lang: string;
+        onstart: () => void;
+        onend: () => void;
+        onerror: () => void;
+        onresult: (event: { results: { [key: number]: { [key: number]: { transcript: string } } } }) => void;
+        start: () => void;
+      };
+    }
+
+    const SpeechRecognition = (window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }).SpeechRecognition || 
+                                (window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition;
+    
     if (!SpeechRecognition) {
       alert("Speech recognition not supported in this browser.");
       return;
@@ -60,7 +75,7 @@ export const ManualFoodLog = ({ isOpen, onClose, embedded = false }: { isOpen?: 
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: { results: { [key: number]: { [key: number]: { transcript: string } } } }) => {
       const transcript = event.results[0][0].transcript;
       setSearchQuery(transcript);
     };

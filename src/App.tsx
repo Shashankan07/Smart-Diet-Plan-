@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from '@/src/components/auth-provider';
-import { auth, googleProvider, db, OperationType, handleFirestoreError } from '@/src/lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,12 +18,17 @@ import {
   Zap
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
-import { nutritionModel } from '@/src/lib/gemini';
+import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { auth, googleProvider, db, OperationType, handleFirestoreError } from '@/src/lib/firebase';
+import { ManualFoodLog } from '@/src/components/manual-food-log';
+import { FoodScanner } from '@/src/components/food-scanner';
+import { AuthProvider, useAuth } from '@/src/lib/auth';
 
 // --- Shared Types & Logic ---
 export const calculateDailyTargets = (profile: { weight?: number | string; height?: number | string; age?: number | string; goal?: string; activityLevel?: string; gender?: string }) => {
@@ -83,12 +86,9 @@ export const calculateDailyTargets = (profile: { weight?: number | string; heigh
   };
 };
 
-import { ManualFoodLog } from '@/src/components/manual-food-log';
-
-// --- Dashboard Component ---
 const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => {
   const { user, profile } = useAuth();
-  const [mealLogs, setMealLogs] = useState<{ id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: any; manual?: boolean; macroBreakdown?: any; macro_breakdown?: any }[]>([]);
+  const [mealLogs, setMealLogs] = useState<{ id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: { seconds: number; nanoseconds: number; toDate: () => Date } | null; manual?: boolean; macroBreakdown?: Record<string, number>; macro_breakdown?: Record<string, number> }[]>([]);
   const [waterLogs, setWaterLogs] = useState<{ id: string; amountMl: number }[]>([]);
   const [showManualLog, setShowManualLog] = useState(false);
   const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
@@ -115,11 +115,13 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
     const waterQuery = query(collection(db, 'waterLogs'), where('userId', '==', user.uid));
     
     const unsubMeals = onSnapshot(mealQuery, (snap) => {
-      setMealLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as { id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: { seconds: number; nanoseconds: number; toDate: () => Date } | null; manual?: boolean; macroBreakdown?: Record<string, number>; macro_breakdown?: Record<string, number> }[];
+      setMealLogs(logs);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'mealLogs'));
 
     const unsubWater = onSnapshot(waterQuery, (snap) => {
-      setWaterLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as { id: string; amountMl: number }[];
+      setWaterLogs(logs);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'waterLogs'));
 
     return () => { unsubMeals(); unsubWater(); };
@@ -488,8 +490,6 @@ export default function App() {
   );
 }
 
-import { FoodScanner } from '@/src/components/food-scanner';
-
 function AppContent() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
@@ -589,9 +589,9 @@ const HealthSetupTab = () => {
   useEffect(() => {
     if (profile) {
       setFormData({
-        age: profile.age || '',
-        weight: profile.weight || '',
-        height: profile.height || '',
+        age: String(profile.age || ''),
+        weight: String(profile.weight || ''),
+        height: String(profile.height || ''),
         gender: profile.gender || 'male',
         goal: profile.goal || 'maintenance',
         activityLevel: profile.activityLevel || 'sedentary'
@@ -827,10 +827,8 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean; onClick:
     )}
   </button>
 );
-import { getDietCoachResponse } from '@/src/lib/gemini';
-
 const AiCoachTab = () => {
-  const [messages, setMessages] = useState<any[]>([
+  const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     { role: 'ai', text: "Bio-logical interface online. Ready to optimize your nutritional intake. What's on your mind?" }
   ]);
   const [input, setInput] = useState('');
@@ -850,7 +848,7 @@ const AiCoachTab = () => {
     setIsTyping(true);
 
     try {
-      const response = await getDietCoachResponse(userMsg, profile || {}, messages);
+      const response = await getDietCoachResponse(userMsg, (profile || {}) as Record<string, unknown>, messages);
       setMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (err) {
       console.error(err);
@@ -909,7 +907,7 @@ const AiCoachTab = () => {
 // --- Meal Plan Tab ---
 const MealPlanTab = () => {
   const { profile } = useAuth();
-  const [plan, setPlan] = useState<any>(null);
+  const [plan, setPlan] = useState<{ meals: { name: string; type: string; calories: number; protein: number; carbs: number; fat: number; benefit: string; macros?: { protein: number; carbs: number; fat: number } }[] } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const targets = calculateDailyTargets(profile);
@@ -995,7 +993,7 @@ const MealPlanTab = () => {
       ) : (
         <div className="space-y-6">
           <div className="space-y-4">
-            {plan.meals?.map((meal: any, idx: number) => (
+            {plan.meals?.map((meal, idx) => (
               <motion.div 
                 key={idx}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -1011,7 +1009,7 @@ const MealPlanTab = () => {
                     <CardContent className="flex-1 p-5 flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="font-bold text-base text-foreground leading-tight group-hover:text-primary transition-colors">{meal.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-bold line-clamp-1 uppercase tracking-tighter mt-1 opacity-70 italic font-mono">{meal.benefit || meal.health_benefit}</div>
+                        <div className="text-[10px] text-muted-foreground font-bold line-clamp-1 uppercase tracking-tighter mt-1 opacity-70 italic font-mono">{meal.benefit || (meal as unknown as { health_benefit: string }).health_benefit}</div>
                       </div>
                       <div className="flex justify-between items-end border-t border-accent/10 pt-3 mt-3">
                         <div className="text-xl font-black text-[#181E04] tracking-tighter">{meal.calories} <span className="text-[10px] text-muted-foreground opacity-30 font-bold uppercase">KCAL</span></div>
@@ -1036,7 +1034,7 @@ const MealPlanTab = () => {
   );
 };
 
-const MealMacro = ({ label, value, color }: any) => (
+const MealMacro = ({ label, value, color }: { label: string; value: number | string; color: string }) => (
   <div className="flex items-center gap-1 bg-accent/20 px-2 py-1 rounded-lg">
     <div className={cn("w-1 h-1 rounded-full", color)} />
     <span className="text-[9px] font-black text-foreground">{value}<span className="opacity-40">{label}</span></span>

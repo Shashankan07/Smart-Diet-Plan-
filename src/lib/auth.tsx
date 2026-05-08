@@ -3,7 +3,7 @@ import { auth, db } from '@/src/lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-interface UserProfile {
+export interface UserProfile {
   uid: string;
   email: string;
   displayName?: string;
@@ -14,8 +14,8 @@ interface UserProfile {
   gender?: string;
   goal?: string;
   activityLevel?: string;
-  lastLogin?: any;
-  updatedAt?: any;
+  lastLogin?: { seconds: number; nanoseconds: number } | null;
+  updatedAt?: { seconds: number; nanoseconds: number } | null;
   subscriptionStatus?: string;
 }
 
@@ -33,22 +33,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        // Real-time profile sync
-        const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-          setProfile(doc.data() || null);
+    let profileUnsubscribe: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      setUser(authUser);
+      
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+        profileUnsubscribe = null;
+      }
+
+      if (authUser) {
+        try {
+          profileUnsubscribe = onSnapshot(doc(db, 'users', authUser.uid), (docSnap) => {
+            setProfile(docSnap.data() as UserProfile || null);
+            setLoading(false);
+          }, (error) => {
+            console.error("Profile sync error:", error);
+            setLoading(false);
+          });
+        } catch (error) {
+          console.error("Failed to set up profile listener:", error);
           setLoading(false);
-        });
-        return () => profileUnsubscribe();
+        }
       } else {
         setProfile(null);
         setLoading(false);
       }
+    }, (error) => {
+      console.error("Auth state change error:", error);
+      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (profileUnsubscribe) profileUnsubscribe();
+    };
   }, []);
 
   return (
