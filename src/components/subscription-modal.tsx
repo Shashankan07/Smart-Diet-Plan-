@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Crown, Zap, Check, ChevronRight, Smartphone, QrCode, Copy, CheckCircle2 } from 'lucide-react';
+import { X, Crown, Zap, Check, Smartphone, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/src/lib/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -12,24 +14,49 @@ interface SubscriptionModalProps {
 export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) => {
   const { user } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
-  const [copied, setCopied] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   
   const upiId = '6363536914@ybl';
   const name = 'NutriSenseAI';
 
-  const handlePayment = (plan: any) => {
+  const handlePlanSelect = (plan: any) => {
     setSelectedPlan(plan);
     const note = `Sub: ${plan.name} (${user?.email || 'User'})`;
     const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${plan.amount}&cu=INR&tn=${encodeURIComponent(note)}`;
     
-    // Attempt deep link
+    // Auto-redirect to UPI app
     window.location.href = upiUrl;
   };
 
-  const copyUpi = () => {
-    navigator.clipboard.writeText(upiId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleVerify = async () => {
+    if (!user || !selectedPlan) return;
+    
+    setIsVerifying(true);
+    
+    // Simulate payment verification delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    try {
+      // Update Firestore with the paid status
+      await setDoc(doc(db, 'users', user.uid), {
+        subscriptionStatus: selectedPlan.id,
+        subscriptionAmount: selectedPlan.amount,
+        subscriptionDate: serverTimestamp(),
+        isPaid: true
+      }, { merge: true });
+      
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setSelectedPlan(null);
+        onClose();
+      }, 2500);
+    } catch (error) {
+      console.error("Activation failed:", error);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const plans = [
@@ -44,7 +71,7 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
         '35-40 AI Neural Scans / mo',
         '20 hours AI Coach access',
         'Full History Archive',
-        'Advanced Goal Setting'
+        'Global Database Access'
       ]
     },
     {
@@ -59,16 +86,10 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
         '200-250 AI Neural Scans / mo',
         'Unlimited AI Coach access',
         'Priority Analysis Speed',
-        'Exclusive Meal Roadmap'
+        'Lifetime Health Roadmap'
       ]
     }
   ];
-
-  const getQrUrl = (plan: any) => {
-    const note = `Sub: ${plan.name} (${user?.email || 'User'})`;
-    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${plan.amount}&cu=INR&tn=${encodeURIComponent(note)}`;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}`;
-  };
 
   return (
     <AnimatePresence>
@@ -86,21 +107,23 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-sm bg-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-sm bg-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           >
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 flex-1 overflow-y-auto">
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black tracking-tight text-[#181E04]">
-                    {selectedPlan ? 'Complete Payment' : 'Choose Plan'}
+                    {isSuccess ? 'Payment Success' : selectedPlan ? 'Payment Pending' : 'Choose Plan'}
                   </h2>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground opacity-60">
-                    {selectedPlan ? 'Scan to activate' : 'Professional Analysis'}
+                    {isSuccess ? 'Welcome to Premium' : selectedPlan ? 'Verify your transaction' : 'Professional Analysis'}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => selectedPlan ? setSelectedPlan(null) : onClose()} className="rounded-full -mr-2">
-                  <X size={20} />
-                </Button>
+                {!isSuccess && (
+                  <Button variant="ghost" size="icon" onClick={() => selectedPlan ? setSelectedPlan(null) : onClose()} className="rounded-full -mr-2">
+                    <X size={20} />
+                  </Button>
+                )}
               </div>
 
               {!selectedPlan ? (
@@ -109,14 +132,14 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                     <motion.div
                       key={plan.id}
                       whileHover={{ y: -4 }}
-                      onClick={() => handlePayment(plan)}
+                      onClick={() => handlePlanSelect(plan)}
                       className={cn(
                         "relative p-6 rounded-[32px] border-2 transition-all cursor-pointer overflow-hidden group",
                         plan.id === 'elite' ? "border-[#181E04] bg-[#181E04] text-white" : "border-accent/10 bg-accent/5"
                       )}
                     >
                       {plan.highlight && (
-                        <div className="absolute top-4 right-4 bg-primary text-white text-[8px] font-black uppercase px-2 py-1 rounded-full">
+                        <div className="absolute top-4 right-4 bg-primary text-white text-[8px] font-black uppercase px-2 py-1 rounded-full animate-pulse">
                           {plan.highlight}
                         </div>
                       )}
@@ -156,72 +179,74 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                           "flex items-center justify-center gap-2 w-full h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all",
                           plan.id === 'elite' ? "bg-primary text-white" : "bg-[#181E04] text-white"
                         )}>
-                          Initiate Authorization <Smartphone size={14} />
+                          Unlock with Pay <Smartphone size={14} />
                         </div>
                       </div>
                     </motion.div>
                   ))}
                 </div>
+              ) : isSuccess ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-6 text-center">
+                   <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center text-white shadow-xl"
+                   >
+                     <CheckCircle2 size={48} />
+                   </motion.div>
+                   <div className="space-y-2">
+                      <h3 className="text-2xl font-black text-[#181E04]">Activation Complete!</h3>
+                      <p className="text-sm font-medium text-muted-foreground">Redirecting to your dashboard...</p>
+                   </div>
+                </div>
               ) : (
                 <div className="space-y-8 py-4">
-                   <div className="flex flex-col items-center justify-center space-y-6">
-                      <div className="w-full bg-black rounded-[32px] p-6 flex flex-col items-center border border-white/10 shadow-2xl relative overflow-hidden">
-                         {/* PhonePe Branding Header */}
-                         <div className="flex items-center gap-2 mb-6">
-                            <div className="w-8 h-8 bg-[#5f259f] rounded-lg flex items-center justify-center">
-                               <span className="text-white font-black text-xs">पे</span>
-                            </div>
-                            <span className="text-white font-bold tracking-tight">PhonePe</span>
-                         </div>
-                         
-                         <div className="text-[#a048ff] text-[10px] font-black uppercase tracking-[0.3em] mb-6">
-                            Accepted Here
-                         </div>
-
-                         <div className="p-3 bg-white rounded-2xl mb-6 shadow-[0_0_40px_-5px_rgba(160,72,255,0.4)]">
-                            <img 
-                              src={getQrUrl(selectedPlan)} 
-                              alt="Payment QR"
-                              className="w-44 h-44 rounded-lg"
-                            />
-                         </div>
-
-                         <div className="text-center">
-                            <p className="text-white/60 text-[8px] font-bold uppercase tracking-widest mb-1">Scan any QR using PhonePe App</p>
-                            <p className="text-white font-black text-xs tracking-tight">Mr Shashankan S</p>
-                         </div>
-
-                         {/* Bottom footer text */}
-                         <div className="absolute bottom-2 text-[6px] text-white/20 font-medium">
-                            ©2025 NutriSenseAI. All rights reserved.
-                         </div>
+                   <div className="bg-accent/5 rounded-[32px] p-6 border border-accent/10 space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary">
+                          <Smartphone size={24} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#181E04]/40">Status</p>
+                          <p className="text-sm font-black text-[#181E04]">Waiting for UPI transfer...</p>
+                        </div>
                       </div>
-                   </div>
-
-                   <div className="space-y-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-center">Or Copy UPI ID</p>
-                      <button 
-                        onClick={copyUpi}
-                        className="w-full h-14 rounded-2xl bg-accent/5 border border-accent/10 flex items-center justify-between px-6 group active:scale-95 transition-all"
-                      >
-                         <span className="font-mono text-xs font-bold text-[#181E04]">{upiId}</span>
-                         {copied ? <CheckCircle2 size={16} className="text-green-500" /> : <Copy size={16} className="text-muted-foreground opacity-40 group-hover:opacity-100" />}
-                      </button>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground font-medium">
+                        If you have already made the payment of <span className="text-[#181E04] font-bold">{selectedPlan.price}</span>, click the button below to authorize your account.
+                      </p>
                    </div>
 
                    <Button 
-                    onClick={() => setSelectedPlan(null)}
-                    variant="ghost" 
-                    className="w-full text-[10px] font-black uppercase tracking-widest h-12"
+                    onClick={handleVerify}
+                    disabled={isVerifying}
+                    className="w-full h-16 bg-[#181E04] text-white rounded-[24px] font-black uppercase tracking-widest gap-2 shadow-xl"
                    >
-                    Change Plan
+                    {isVerifying ? <Loader2 className="animate-spin" /> : 'Confirm & Activate'}
+                    <ArrowRight size={18} />
                    </Button>
+
+                   <div className="flex flex-col gap-3">
+                      <button 
+                        onClick={() => handlePlanSelect(selectedPlan)}
+                        className="text-[10px] font-bold uppercase tracking-widest text-primary text-center hover:underline"
+                      >
+                         Retry Redirect to Payment App
+                      </button>
+                      <button 
+                        onClick={() => setSelectedPlan(null)}
+                        className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-40 text-center hover:opacity-100"
+                      >
+                         Change selected plan
+                      </button>
+                   </div>
                 </div>
               )}
 
-              <p className="text-[9px] text-center text-muted-foreground font-medium uppercase tracking-widest opacity-40 px-6">
-                Instant activation upon verification. Invoices sent to {user?.email || 'registered gmail'}.
-              </p>
+              {!isSuccess && (
+                <p className="text-[9px] text-center text-muted-foreground font-medium uppercase tracking-widest opacity-40 px-6">
+                  Account status updates instantly after confirmation.
+                </p>
+              )}
             </div>
           </motion.div>
         </div>
