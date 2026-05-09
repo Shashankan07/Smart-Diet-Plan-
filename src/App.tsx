@@ -540,7 +540,11 @@ const Landing = () => {
       setConfirmationResult(result);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to send code');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Phone Auth is disabled. Go to Firebase Console > Authentication > Sign-in Method and ENABLE "Phone".');
+      } else {
+        setError(err.message || 'Failed to send code. Please try Google Login.');
+      }
     } finally {
       setIsSending(false);
     }

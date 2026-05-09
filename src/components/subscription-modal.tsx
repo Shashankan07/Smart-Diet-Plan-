@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Crown, Zap, Check, Smartphone, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { X, Crown, Zap, Check, Smartphone, CheckCircle2, Loader2, ArrowRight, Copy, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/src/lib/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -16,17 +16,36 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   const upiId = '6363536914@ybl';
   const name = 'NutriSenseAI';
 
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && selectedPlan && !isSuccess && !isVerifying) {
+        // Automatic verification when user returns to app
+        handleVerify();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [selectedPlan, isSuccess, isVerifying]);
+
   const handlePlanSelect = (plan: any) => {
     setSelectedPlan(plan);
-    const note = `Sub: ${plan.name} (${user?.email || 'User'})`;
+    const userIdentifier = user?.email || user?.phoneNumber || user?.uid || 'Paid_User';
+    const note = `Sub: ${plan.name} (${userIdentifier})`;
     const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${plan.amount}&cu=INR&tn=${encodeURIComponent(note)}`;
     
     // Auto-redirect to UPI app
     window.location.href = upiUrl;
+  };
+
+  const copyUpi = () => {
+    navigator.clipboard.writeText(upiId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleVerify = async () => {
@@ -35,6 +54,7 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
     setIsVerifying(true);
     
     // Simulate payment verification delay
+    // In a real app, this would check a backend service or transaction log
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
@@ -203,17 +223,25 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                 <div className="space-y-8 py-4">
                    <div className="bg-accent/5 rounded-[32px] p-8 border border-accent/10 space-y-6 text-center">
                       <div className="w-20 h-20 bg-[#5f259f]/10 rounded-[28px] flex items-center justify-center text-[#5f259f] mx-auto mb-2">
-                        <Smartphone size={32} className="animate-pulse" />
+                        {isVerifying ? (
+                          <Loader2 size={32} className="animate-spin" />
+                        ) : (
+                          <Smartphone size={32} className="animate-bounce" />
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-black text-[#181E04]">Payment Pending</h3>
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Please complete the payment of <span className="text-[#181E04] font-bold">{selectedPlan.price}</span> using any UPI app.
+                        <h3 className="text-xl font-black text-[#181E04]">
+                          {isVerifying ? 'Verifying Payment' : 'Payment Initiated'}
+                        </h3>
+                        <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                          {isVerifying 
+                            ? 'Scanning Nutrient Network for your transaction...' 
+                            : `Complete the ${selectedPlan.price} transfer in your UPI app. Your account will activate automatically when you return.`}
                         </p>
                       </div>
                    </div>
 
-                   <div className="space-y-3">
+                   <div className="space-y-4">
                      <Button 
                       onClick={() => handlePlanSelect(selectedPlan)}
                       className="w-full h-20 bg-[#5f259f] text-white rounded-[28px] font-black uppercase tracking-widest gap-3 shadow-xl hover:bg-[#4a1d7d] active:scale-95 transition-all text-sm"
@@ -221,18 +249,27 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                       <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
                          <span className="text-[#5f259f] font-black text-xs">पे</span>
                       </div>
-                      Pay with PhonePe / GPay
+                      Re-open UPI Apps
                       <ArrowRight size={18} />
                      </Button>
 
-                     <Button 
-                      onClick={handleVerify}
-                      disabled={isVerifying}
-                      variant="outline"
-                      className="w-full h-14 rounded-[24px] font-bold uppercase tracking-widest gap-2 border-2 text-[10px]"
-                     >
-                      {isVerifying ? <Loader2 className="animate-spin" /> : 'I have completed payment'}
-                     </Button>
+                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                        <p className="text-[10px] font-bold text-amber-700 leading-tight">
+                          ⚠️ If the payment app doesn't open, please click the "Open in new tab" icon at the top of this preview to allow deep-linking.
+                        </p>
+                     </div>
+                   </div>
+
+                   <div className="space-y-4">
+                      <div className="h-px bg-accent/10 w-full" />
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-center text-muted-foreground opacity-50">Trouble paying? Copy UPI ID</p>
+                      <button 
+                        onClick={copyUpi}
+                        className="w-full h-12 rounded-xl bg-accent/5 flex items-center justify-between px-4 border border-accent/10 active:scale-95 transition-all"
+                      >
+                         <span className="font-mono text-[10px] font-bold text-[#181E04]">{upiId}</span>
+                         {copied ? <CheckCircle size={14} className="text-green-500" /> : <Copy size={14} className="opacity-40" />}
+                      </button>
                    </div>
 
                    <button 
