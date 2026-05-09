@@ -17,7 +17,9 @@ import {
   X,
   Zap,
   Download,
-  Smartphone
+  Smartphone,
+  Calendar,
+  ChevronLeft
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
@@ -31,6 +33,7 @@ import { auth, googleProvider, db, OperationType, handleFirestoreError } from '@
 import { ManualFoodLog } from '@/src/components/manual-food-log';
 import { FoodScanner } from '@/src/components/food-scanner';
 import { AuthProvider, useAuth } from '@/src/lib/auth';
+import { SubscriptionModal } from '@/src/components/subscription-modal';
 
 // --- Shared Types & Logic ---
 export const calculateDailyTargets = (profile: { weight?: number | string; height?: number | string; age?: number | string; goal?: string; activityLevel?: string; gender?: string }) => {
@@ -109,7 +112,7 @@ export const calculateDailyTargets = (profile: { weight?: number | string; heigh
   };
 };
 
-const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => {
+const Dashboard = ({ onWaterLog, onScanTrigger, onViewHistory }: { onWaterLog: (amount: number) => void, onScanTrigger: () => void, onViewHistory: () => void }) => {
   const { user, profile } = useAuth();
   const [mealLogs, setMealLogs] = useState<{ id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: { seconds: number; nanoseconds: number; toDate: () => Date } | null; manual?: boolean; macroBreakdown?: Record<string, number>; macro_breakdown?: Record<string, number> }[]>([]);
   const [waterLogs, setWaterLogs] = useState<{ id: string; amountMl: number }[]>([]);
@@ -134,8 +137,20 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
   useEffect(() => {
     if (!user) return;
     
-    const mealQuery = query(collection(db, 'mealLogs'), where('userId', '==', user.uid));
-    const waterQuery = query(collection(db, 'waterLogs'), where('userId', '==', user.uid));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Filter by user and today's date
+    const mealQuery = query(
+      collection(db, 'mealLogs'), 
+      where('userId', '==', user.uid),
+      where('timestamp', '>=', today)
+    );
+    const waterQuery = query(
+      collection(db, 'waterLogs'), 
+      where('userId', '==', user.uid),
+      where('loggedAt', '>=', today)
+    );
     
     const unsubMeals = onSnapshot(mealQuery, (snap) => {
       const logs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as { id: string; calories: number; protein?: number; carbs?: number; fat?: number; foodName: string; mealType: string; timestamp: { seconds: number; nanoseconds: number; toDate: () => Date } | null; manual?: boolean; macroBreakdown?: Record<string, number>; macro_breakdown?: Record<string, number> }[];
@@ -255,7 +270,7 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
             {/* Floating Macro Mini Rings */}
             <div className="absolute -bottom-4 flex gap-4 w-full justify-center px-4 z-20">
                <MacroArc label="P" current={totalProtein} target={proteinTarget} color="#3B82F6" />
-               <MacroArc label="C" current={totalCarbs} target={carbsTarget} color="#B87739" />
+               <MacroArc label="CA" current={totalCarbs} target={carbsTarget} color="#B87739" />
                <MacroArc label="F" current={totalFat} target={fatTarget} color="#EF4444" />
             </div>
           </motion.div>
@@ -356,7 +371,13 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
       <div className="space-y-4 px-2">
         <div className="flex justify-between items-center">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Today's Meals</h2>
-          <span className="text-[10px] font-mono p-1 bg-emerald-100 text-emerald-800 rounded">UPDATED</span>
+          <button 
+            onClick={() => onViewHistory()}
+            className="flex items-center gap-1.5 text-[9px] font-black text-primary uppercase tracking-widest hover:opacity-70 transition-all bg-primary/5 px-2.5 py-1.5 rounded-full border border-primary/10"
+          >
+            <Calendar size={10} />
+            View Archive
+          </button>
         </div>
         
         <div className="space-y-3">
@@ -397,8 +418,13 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
               </motion.div>
             ))
           ) : (
-            <div className="p-12 text-center rounded-[40px] border-2 border-dashed border-border/60">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground opacity-40">Awaiting Daily Logs</p>
+            <div 
+            onClick={() => onViewHistory()}
+              className="p-10 text-center rounded-[40px] border-2 border-dashed border-border/60 group hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
+            >
+              <Calendar size={32} className="mx-auto mb-4 text-muted-foreground opacity-20 group-hover:text-primary transition-colors" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground opacity-40 group-hover:opacity-80">Awaiting Daily Logs</p>
+              <span className="text-[8px] font-black text-primary uppercase tracking-[0.4em] block mt-2 opacity-0 group-hover:opacity-100 transition-all">Browse Archive</span>
             </div>
           )}
         </div>
@@ -409,27 +435,77 @@ const Dashboard = ({ onWaterLog }: { onWaterLog: (amount: number) => void }) => 
 
 const MacroArc = ({ label, current, target, color }: { label: string; current: number; target: number; color: string }) => {
   const percent = Math.min(1, current / target);
+  // Unique ID for the gradient to prevent conflicts
+  const gradientId = `grad-${label.toLowerCase()}`;
+  
+  // Calculate the position for a little dot at the end of the arc
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percent * circumference);
+  
   return (
-    <div className="bg-white px-3 py-2 rounded-2xl border border-border/60 shadow-xl flex items-center gap-2.5">
-      <div className="relative w-7 h-7 flex items-center justify-center">
+    <motion.div 
+      whileHover={{ y: -6, scale: 1.05 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white px-3.5 py-2.5 rounded-[22px] border border-border/40 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] flex items-center gap-3 transition-all hover:shadow-2xl hover:border-primary/20 backdrop-blur-sm bg-white/95"
+    >
+      <div className="relative w-10 h-10 flex items-center justify-center">
         <svg className="absolute w-full h-full rotate-[-90deg]">
-           <circle cx="50%" cy="50%" r="12" fill="none" stroke="#E2E4DC" strokeWidth="3" />
+           <defs>
+             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+               <stop offset="0%" stopColor={color} stopOpacity="0.8" />
+               <stop offset="100%" stopColor={color} />
+             </linearGradient>
+             <filter id={`glow-${label}`} x="-30%" y="-30%" width="160%" height="160%">
+               <feGaussianBlur stdDeviation="1.2" result="blur" />
+               <feComposite in="SourceGraphic" in2="blur" operator="over" />
+             </filter>
+           </defs>
+           {/* Thicker background with lower opacity */}
+           <circle cx="50%" cy="50%" r={radius} fill="none" stroke="#F1F3ED" strokeWidth="3.5" />
            <motion.circle 
-             cx="50%" cy="50%" r="12" 
-             fill="none" stroke={color} strokeWidth="3" 
-             strokeDasharray="75" 
-             initial={{ strokeDashoffset: 75 }}
-             animate={{ strokeDashoffset: 75 - (75 * percent) }}
-             transition={{ duration: 1 }}
+             cx="50%" cy="50%" r={radius} 
+             fill="none" 
+             stroke={`url(#${gradientId})`}
+             strokeWidth="3.5" 
+             strokeDasharray={circumference} 
+             strokeLinecap="round"
+             filter={`url(#glow-${label})`}
+             initial={{ strokeDashoffset: circumference }}
+             animate={{ strokeDashoffset: offset }}
+             transition={{ duration: 1.8, ease: [0.34, 1.56, 0.64, 1] }}
            />
+           {/* Small accent dot at the end of the arc */}
+           {percent > 0 && (
+             <motion.circle
+               cx="50%" cy="50%" r="2"
+               fill="white"
+               stroke={color}
+               strokeWidth="1"
+               initial={{ opacity: 0 }}
+               animate={{ 
+                  opacity: 1,
+                  rotate: percent * 360 
+               }}
+               style={{ transformOrigin: "center", transform: `rotate(${percent * 360}deg) translateY(-${radius}px)` }}
+               transition={{ duration: 1.8, ease: [0.34, 1.56, 0.64, 1] }}
+             />
+           )}
         </svg>
-        <span className="text-[9px] font-black text-foreground">{label}</span>
+        <span className={cn(
+          "font-black text-foreground/80 relative z-10 tracking-tighter",
+          label.length > 1 ? "text-[8px]" : "text-[10px]"
+        )}>{label}</span>
       </div>
       <div className="flex flex-col -space-y-1">
-        <span className="text-[14px] font-black text-foreground">{current.toFixed(0)}</span>
-        <span className="text-[7px] font-bold uppercase text-muted-foreground tracking-widest">Goal: {target}g</span>
+        <div className="flex items-baseline gap-0.5">
+          <span className="text-[17px] font-black text-foreground tracking-tight leading-none">{current.toFixed(0)}</span>
+          <span className="text-[8px] font-bold text-muted-foreground opacity-40 uppercase">/ {target}</span>
+        </div>
+        <span className="text-[7px] font-black uppercase text-muted-foreground/40 tracking-[0.15em] mt-0.5">grams</span>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -545,9 +621,29 @@ export default function App() {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
-  const [showScanner, setShowScanner] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+
+  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
+  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
+  const hasFullAccess = isAdmin || isSubscriber;
+
+  const navigateToScanner = () => {
+    if (hasFullAccess) {
+      setActiveTab('scanner');
+    } else {
+      setShowSubscriptionModal(true);
+    }
+  };
+
+  const handleTabChange = (tab: string) => {
+    if (tab === 'chat' && !hasFullAccess) {
+      setShowSubscriptionModal(true);
+      return;
+    }
+    setActiveTab(tab);
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -588,39 +684,32 @@ function AppContent() {
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
-            {activeTab === 'home' && <Dashboard onWaterLog={handleWaterLog} />}
-            {activeTab === 'plan' && <MealPlanTab />}
+            {activeTab === 'home' && <Dashboard onWaterLog={handleWaterLog} onScanTrigger={navigateToScanner} onViewHistory={() => setActiveTab('history')} />}
+            {activeTab === 'history' && <HistoryTab onUpgrade={() => setShowSubscriptionModal(true)} />}
+            {activeTab === 'plan' && <MealPlanTab onScanTrigger={navigateToScanner} />}
             {activeTab === 'chat' && <AiCoachTab />}
             {activeTab === 'profile' && <HealthSetupTab />}
+            {activeTab === 'scanner' && <ScannerTab onComplete={() => setActiveTab('home')} />}
           </motion.div>
         </AnimatePresence>
       </main>
 
       <ManualFoodLog isOpen={false} onClose={() => {}} />
+      <SubscriptionModal isOpen={showSubscriptionModal} onClose={() => setShowSubscriptionModal(false)} />
 
-      {/* Floating Log Trigger */}
-      <div className="fixed bottom-32 right-6 z-40 group">
-        <Button 
-          onClick={() => setShowScanner(true)} 
-          size="icon" 
-          className="h-16 w-16 rounded-full bg-primary hover:bg-primary/90 shadow-[0_20px_50px_-10px_rgba(184,119,57,0.4)] text-white border-none transition-all hover:scale-105 active:scale-95"
-        >
-          <Camera size={28} />
-        </Button>
-      </div>
-
-      {showScanner && <FoodScanner onComplete={() => setShowScanner(false)} />}
 
       {/* Modern Bottom Navigation */}
       <footer className="fixed bottom-0 left-0 right-0 p-6 z-50 pointer-events-none">
         <nav className="max-w-md mx-auto bg-white/80 backdrop-blur-3xl border border-border/50 flex justify-around items-center p-2.5 rounded-[40px] shadow-[0_20px_60px_-15px_rgba(24,30,4,0.1)] pointer-events-auto">
-          <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<Activity size={20} />} label="Journal" />
-          <NavButton active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<ChefHat size={20} />} label="Meals" />
-          <div className="w-12 h-12 flex items-center justify-center text-primary/30">
-            <Apple size={24} />
+          <NavButton active={activeTab === 'home'} onClick={() => handleTabChange('home')} icon={<Activity size={18} />} label="Home" />
+          <NavButton active={activeTab === 'plan'} onClick={() => handleTabChange('plan')} icon={<ChefHat size={18} />} label="Meals" />
+          <NavButton active={activeTab === 'scanner'} onClick={navigateToScanner} icon={<Camera size={18} />} label="Scan" />
+          <div className="w-8 h-8 flex items-center justify-center text-primary/30">
+            <Apple size={20} />
           </div>
-          <NavButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} icon={<MessageSquare size={20} />} label="Coach" />
-          <NavButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<UserIcon size={20} />} label="Profile" />
+          <NavButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={<Calendar size={18} />} label="Hist" />
+          <NavButton active={activeTab === 'chat'} onClick={() => handleTabChange('chat')} icon={<MessageSquare size={18} />} label="Coach" />
+          <NavButton active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<UserIcon size={18} />} label="Prof" />
         </nav>
       </footer>
     </div>
@@ -964,12 +1053,16 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean; onClick:
   </button>
 );
 const AiCoachTab = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
+  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
+  const hasFullAccess = isAdmin || isSubscriber;
+
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     { role: 'ai', text: "Bio-logical interface online. Ready to optimize your nutritional intake. What's on your mind?" }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const { profile } = useAuth();
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1041,7 +1134,7 @@ const AiCoachTab = () => {
 };
 
 // --- Meal Plan Tab ---
-const MealPlanTab = () => {
+const MealPlanTab = ({ onScanTrigger }: { onScanTrigger: () => void }) => {
   const { profile } = useAuth();
   const [plan, setPlan] = useState<{ meals: { name: string; type: string; calories: number; protein: number; carbs: number; fat: number; benefit: string; macros?: { protein: number; carbs: number; fat: number } }[] } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1079,7 +1172,7 @@ const MealPlanTab = () => {
   };
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-8 pb-32">
       <div className="flex justify-between items-end">
         <div className="space-y-1">
           <h2 className="text-2xl font-bold text-foreground tracking-tight">AI Nutrition Roadmap</h2>
@@ -1095,7 +1188,7 @@ const MealPlanTab = () => {
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Database size={14} className="text-primary" />
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Local Database</h3>
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nutrient Bank</h3>
           </div>
           <span className="text-[8px] font-mono text-muted-foreground opacity-30">V.2.0.4 ONLINE</span>
         </div>
@@ -1166,6 +1259,214 @@ const MealPlanTab = () => {
           </Button>
         </div>
       )}
+    </div>
+  );
+};
+
+// --- History Tab ---
+const ScannerTab = ({ onComplete }: { onComplete: () => void }) => {
+  return (
+    <div className="fixed inset-0 z-[60] bg-[#FDFCFB] overflow-hidden flex flex-col">
+       <div className="p-6 flex items-center justify-between border-b border-border/10 bg-white/50 backdrop-blur-xl shrink-0">
+          <div className="space-y-0.5">
+             <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#181E04]/40">Active Session</span>
+             </div>
+             <h2 className="text-xl font-black text-[#181E04] tracking-tight">AI Neural Scan</h2>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onComplete}
+            className="rounded-full w-12 h-12 bg-accent/20 hover:bg-accent/40"
+          >
+             <X size={20} />
+          </Button>
+       </div>
+       
+       <div className="flex-1 relative">
+          <FoodScanner onComplete={onComplete} />
+       </div>
+       
+       <div className="p-8 bg-zinc-900 text-white shrink-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-4">Neural Analysis Guide</p>
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-1">
+                <div className="text-xs font-black text-primary">01. Optical Lock</div>
+                <p className="text-[10px] text-white/50 leading-relaxed font-medium">Center the meal within the viewfinder for multi-spectrum analysis.</p>
+             </div>
+             <div className="space-y-1">
+                <div className="text-xs font-black text-primary">02. Tokenization</div>
+                <p className="text-[10px] text-white/50 leading-relaxed font-medium">AI will decompose pixels into estimated nutritional tokens.</p>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const HistoryTab = ({ onUpgrade }: { onUpgrade: () => void }) => {
+  const { user, profile } = useAuth();
+  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
+  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
+  const hasFullAccess = isAdmin || isSubscriber;
+
+  const [selectedDate, setSelectedDate] = useState(new Date(new Date().setDate(new Date().getDate() - 1)));
+  const [mealLogs, setMealLogs] = useState<any[]>([]);
+  const [waterLogs, setWaterLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const mealQuery = query(
+      collection(db, 'mealLogs'),
+      where('userId', '==', user.uid),
+      where('timestamp', '>=', startOfDay),
+      where('timestamp', '<=', endOfDay)
+    );
+
+    const waterQuery = query(
+      collection(db, 'waterLogs'),
+      where('userId', '==', user.uid),
+      where('loggedAt', '>=', startOfDay),
+      where('loggedAt', '<=', endOfDay)
+    );
+
+    const unsubscribeMeals = onSnapshot(mealQuery, (snap) => {
+      setMealLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const unsubscribeWater = onSnapshot(waterQuery, (snap) => {
+      setWaterLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeMeals();
+      unsubscribeWater();
+    };
+  }, [user, selectedDate]);
+
+  const totalCalories = mealLogs.reduce((acc, current) => acc + (Number(current.calories) || 0), 0);
+  const totalWater = waterLogs.reduce((acc, current) => acc + (Number(current.amountMl) || 0), 0);
+
+  const changeDate = (days: number) => {
+    const nextDate = new Date(selectedDate);
+    nextDate.setDate(nextDate.getDate() + days);
+    
+    // Check for future dates
+    if (nextDate > new Date()) return;
+
+    // Check for history restriction (2 days for free users)
+    if (!hasFullAccess) {
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(0, 0, 0, 0);
+      
+      if (nextDate < twoDaysAgo) {
+        onUpgrade();
+        return;
+      }
+    }
+
+    setSelectedDate(nextDate);
+  };
+
+  return (
+    <div className="space-y-8 pb-32">
+      <div className="space-y-1">
+        <h2 className="text-2xl font-bold text-foreground">Activity History</h2>
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest italic leading-none opacity-60">Archive Analysis</p>
+      </div>
+
+      {/* Date Selector */}
+      <div className="flex items-center justify-between bg-white p-2 rounded-[32px] border border-border/50 shadow-sm">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => changeDate(-1)}
+          className="rounded-full w-12 h-12 hover:bg-accent/50"
+        >
+          <ChevronLeft size={20} />
+        </Button>
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/40 block">Viewing Data For</span>
+          <span className="text-sm font-black text-foreground">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => changeDate(1)}
+          className="rounded-full w-12 h-12 hover:bg-accent/50"
+          disabled={selectedDate.toDateString() === new Date().toDateString()}
+        >
+          <ChevronRight size={20} />
+        </Button>
+      </div>
+
+      {/* Daily Summary */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-[#181E04] border-none rounded-[32px] p-6 text-white relative overflow-hidden">
+           <Zap className="absolute top-0 right-0 p-4 opacity-5 text-white" size={80} />
+           <div className="relative z-10 space-y-1">
+              <div className="text-2xl font-black tracking-tighter">{totalCalories}</div>
+              <p className="text-[9px] font-bold uppercase tracking-widest opacity-60">Total Calories</p>
+           </div>
+        </Card>
+        <Card className="bg-blue-500/10 border-blue-500/20 border-none rounded-[32px] p-6 text-blue-500">
+           <Droplet className="absolute top-0 right-0 p-4 opacity-5" size={80} />
+           <div className="relative z-10 space-y-1">
+              <div className="text-2xl font-black tracking-tighter">{totalWater}ml</div>
+              <p className="text-[9px] font-bold uppercase tracking-widest opacity-60">Fluid Intake</p>
+           </div>
+        </Card>
+      </div>
+
+      {/* Logged Items */}
+      <div className="space-y-4">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Consumption Log</h3>
+        {loading ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="animate-spin text-primary" size={32} />
+          </div>
+        ) : mealLogs.length > 0 ? (
+          <div className="space-y-3">
+            {mealLogs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map((log) => (
+              <div 
+                key={log.id} 
+                className="flex items-center justify-between bg-white p-5 rounded-[28px] border border-border/40 shadow-sm"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-accent/20 rounded-2xl flex items-center justify-center">
+                    {log.mealType === 'breakfast' ? <Zap size={18} className="text-amber-500" /> : <ChefHat size={18} className="text-primary" />}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground line-clamp-1">{log.foodName}</h4>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{log.mealType}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black text-foreground tracking-tighter">+{log.calories}</div>
+                  <span className="text-[8px] font-mono font-black text-muted-foreground uppercase opacity-40 leading-none">KCAL</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white/40 border-2 border-dashed border-border/40 p-12 rounded-[40px] text-center">
+             <Calendar size={32} className="mx-auto mb-4 text-muted-foreground opacity-20" />
+             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground opacity-40">No entries recorded for this date</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
