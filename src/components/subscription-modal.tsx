@@ -38,6 +38,14 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
     const note = `Sub: ${plan.name} (${userIdentifier})`;
     const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${plan.amount}&cu=INR&tn=${encodeURIComponent(note)}`;
     
+    // Check if we are in an iframe
+    const isInIframe = window.self !== window.top;
+    
+    if (isInIframe) {
+      // In an iframe, deep links usually fail. Inform the user.
+      console.warn("Deep linking might be blocked in preview mode.");
+    }
+
     // Auto-redirect to UPI app
     window.location.href = upiUrl;
   };
@@ -253,10 +261,18 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                       <ArrowRight size={18} />
                      </Button>
 
-                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
-                        <p className="text-[10px] font-bold text-amber-700 leading-tight">
-                          ⚠️ If the payment app doesn't open, please click the "Open in new tab" icon at the top of this preview to allow deep-linking.
+                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-2">
+                        <div className="flex items-center gap-2 text-amber-700">
+                           <Smartphone size={14} className="shrink-0" />
+                           <p className="text-[10px] font-black uppercase tracking-widest">Mobile Device Alert</p>
+                        </div>
+                        <p className="text-[10px] font-medium text-amber-700 leading-tight">
+                          If payment apps don't open automatically:
                         </p>
+                        <ul className="text-[9px] text-amber-700/80 space-y-1 list-disc ml-3 font-medium">
+                           <li>Click the "Open in new tab" icon at the top of the screen.</li>
+                           <li>Or manually copy the UPI ID below and pay in your app.</li>
+                        </ul>
                      </div>
                    </div>
 
