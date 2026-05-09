@@ -261,6 +261,17 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                       <ArrowRight size={18} />
                      </Button>
 
+                     {user?.email === 'shashankanshashankan16@gmail.com' && (
+                       <Button 
+                        onClick={handleVerify}
+                        disabled={isVerifying}
+                        variant="ghost"
+                        className="w-full text-[10px] font-black text-primary uppercase tracking-[0.2em] animate-pulse"
+                       >
+                         [ Admin Test: Bypass Payment ]
+                       </Button>
+                     )}
+
                      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-2">
                         <div className="flex items-center gap-2 text-amber-700">
                            <Smartphone size={14} className="shrink-0" />

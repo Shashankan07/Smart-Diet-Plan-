@@ -818,10 +818,42 @@ function AppContent() {
   const { user, loading, profile } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [permissionsStatus, setPermissionsStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
 
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
   const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
   const hasFullAccess = isAdmin || isSubscriber;
+
+  useEffect(() => {
+    // Check permissions on mount
+    const checkPermissions = async () => {
+      try {
+        if ('navigator' in window && 'permissions' in navigator) {
+          const res = await navigator.permissions.query({ name: 'camera' as any });
+          setPermissionsStatus(res.state as any);
+          
+          res.onchange = () => {
+            setPermissionsStatus(res.state as any);
+          };
+        }
+      } catch (e) {
+        console.warn('Navigator permissions check not supported');
+        setPermissionsStatus('granted'); // Fallback for browsers/environments that don't support query
+      }
+    };
+    checkPermissions();
+  }, []);
+
+  const requestPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      setPermissionsStatus('granted');
+    } catch (err) {
+      console.error('Permission request failed:', err);
+      setPermissionsStatus('denied');
+    }
+  };
 
   const navigateToScanner = () => {
     if (hasFullAccess) {
@@ -851,6 +883,25 @@ function AppContent() {
   );
 
   if (!user) return <Landing />;
+
+  if (permissionsStatus === 'denied') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white p-8">
+        <div className="text-center space-y-6 max-w-sm">
+          <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+            <Camera size={48} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-[#181E04]">Permissions Required</h2>
+            <p className="text-sm text-muted-foreground">NutriSense AI needs camera access to scan food and provide accurate insights. Please enable it in your device settings.</p>
+          </div>
+          <Button onClick={requestPermissions} className="w-full h-14 bg-[#181E04] text-white rounded-2xl font-bold uppercase tracking-widest">
+            Grant Access
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleWaterLog = async (amountMl: number = 250) => {
     try {
@@ -1087,6 +1138,31 @@ const HealthSetupTab = () => {
       </Card>
 
       <InstallAppSection />
+
+      <Card className="border-none bg-primary/10 rounded-[32px] overflow-hidden shadow-sm p-6 space-y-4">
+        <div className="flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="p-3 bg-white rounded-2xl">
+                <Camera className="text-primary" size={24} />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground">Device Access</h3>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                   {permissionsStatus === 'granted' ? '✅ System Ready' : '⚠️ Setup Required'}
+                </p>
+              </div>
+           </div>
+           {permissionsStatus !== 'granted' && (
+             <Button 
+               size="sm" 
+               onClick={requestPermissions}
+               className="rounded-xl h-10 px-4 bg-[#181E04] text-white font-black text-[10px] uppercase"
+             >
+                Authorize
+             </Button>
+           )}
+        </div>
+      </Card>
 
       <Card className="border-none bg-accent/20 rounded-[32px] overflow-hidden shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-3">
