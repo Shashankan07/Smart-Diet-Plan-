@@ -27,7 +27,22 @@ import {
   Smartphone,
   Calendar,
   ChevronLeft,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  Droplets,
+  Flame,
+  Target,
+  Clock,
+  LayoutDashboard,
+  Utensils,
+  Settings,
+  LogOut,
+  ShieldCheck,
+  Info,
+  Search,
+  ArrowLeft,
+  CheckCircle2,
+  History
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
@@ -611,15 +626,17 @@ const Landing = () => {
     setError('');
     setIsLoggingIn(true);
     try {
-      // Check if we are on a mobile device or if popups are likely to fail
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+      // Improved environment detection for Capacitor/Android
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const isCapacitor = window.hasOwnProperty('Capacitor');
       
-      if (isMobile || isStandalone) {
-        // Use redirect for mobile/PWA
+      console.log("Login Attempt:", { isAndroid, isCapacitor });
+
+      if (isAndroid || isCapacitor) {
+        // Redirect often works better inside the native WebView than Popups
         await signInWithRedirect(auth, googleProvider);
       } else {
-        // Use popup for desktop
+        // Standard popup for browser
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
         
@@ -634,11 +651,11 @@ const Landing = () => {
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      // Fallback to redirect if popup is blocked
-      if (err.code === 'auth/popup-blocked') {
+      // Fallback logic
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
         await signInWithRedirect(auth, googleProvider);
       } else {
-        setError(err.message || "Login failed. Please try again.");
+        setError(err.message || "Login failed. Ensure 'localhost' is added to Authorized Domains in Firebase.");
       }
     } finally {
       setIsLoggingIn(false);
