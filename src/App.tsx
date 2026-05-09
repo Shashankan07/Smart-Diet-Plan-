@@ -626,36 +626,36 @@ const Landing = () => {
     setError('');
     setIsLoggingIn(true);
     try {
-      // Improved environment detection for Capacitor/Android
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      const isCapacitor = window.hasOwnProperty('Capacitor');
+      // Use popup by default for all environments
+      // This is generally more reliable in keeping the auth state within the app's context
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
       
-      console.log("Login Attempt:", { isAndroid, isCapacitor });
-
-      if (isAndroid || isCapacitor) {
-        // Redirect often works better inside the native WebView than Popups
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        // Standard popup for browser
-        const result = await signInWithPopup(auth, googleProvider);
-        const user = result.user;
-        
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          lastLogin: serverTimestamp(),
-          subscriptionStatus: 'free'
-        }, { merge: true });
-      }
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        lastLogin: serverTimestamp(),
+        subscriptionStatus: 'free'
+      }, { merge: true });
     } catch (err: any) {
-      console.error("Login error:", err);
-      // Fallback logic
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-        await signInWithRedirect(auth, googleProvider);
+      console.error("Login initial error:", err);
+      
+      // If popup is blocked, attempt redirect as a last resort
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectErr: any) {
+          setError("Login process interrupted. Please allow popups or use a standard mobile browser.");
+        }
       } else {
-        setError(err.message || "Login failed. Ensure 'localhost' is added to Authorized Domains in Firebase.");
+        // Handle common Firebase errors with helpful messages
+        let message = "Login failed. Please try again.";
+        if (err.code === 'auth/network-request-failed') message = "Network error. Check your internet connection.";
+        if (err.code === 'auth/internal-error') message = "Firebase internal error. Please check your config.";
+        
+        setError(message);
       }
     } finally {
       setIsLoggingIn(false);
@@ -904,7 +904,8 @@ function AppContent() {
 
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
   const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const hasFullAccess = isAdmin || isSubscriber;
+  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app';
+  const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
 
   useEffect(() => {
     // Check permissions on mount
@@ -1222,18 +1223,32 @@ const HealthSetupTab = ({ permissionsStatus, requestPermissions }: { permissions
       <Card className="border-none bg-[#181E04] text-white rounded-[40px] overflow-hidden shadow-2xl p-8 space-y-6">
         <div className="flex items-center justify-between">
            <div className="space-y-1">
-             <h3 className="text-xl font-black tracking-tight uppercase">Smart Diet Portal</h3>
-             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">External Nutrition Resource</p>
+             <div className="flex items-center gap-2">
+               <h3 className="text-xl font-black tracking-tight uppercase">Diet Blueprint</h3>
+               {isAdmin && (
+                 <motion.div 
+                   animate={{ scale: [1, 1.2, 1] }} 
+                   transition={{ repeat: Infinity, duration: 2 }}
+                   className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]" 
+                 />
+               )}
+             </div>
+             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Linked: smart-diet-plan.vercel.app</p>
            </div>
            <Button 
             variant="outline" 
             size="sm" 
             onClick={() => window.open('https://smart-diet-plan.vercel.app/', '_blank')}
-            className="rounded-xl h-10 border-white/20 hover:bg-white/10 text-white font-black text-[10px] uppercase"
+            className="rounded-xl h-10 border-white/20 hover:bg-white/10 text-white font-black text-[10px] uppercase shadow-lg shadow-primary/5"
            >
-              Launch <ArrowRight size={14} className="ml-2" />
+              Open Plan <ArrowRight size={14} className="ml-2" />
            </Button>
         </div>
+        {isAdmin && (
+          <div className="pt-2 border-t border-white/5">
+            <p className="text-[9px] font-bold text-primary/70 uppercase tracking-[0.2em] animate-pulse">Admin Neural Link Active • Unlimited Access Verified</p>
+          </div>
+        )}
       </Card>
 
       <InstallAppSection />
@@ -1425,7 +1440,8 @@ const AiCoachTab = () => {
   const { profile, user } = useAuth();
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
   const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const hasFullAccess = isAdmin || isSubscriber;
+  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app';
+  const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
 
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     { role: 'ai', text: "Bio-logical interface online. Ready to optimize your nutritional intake. What's on your mind?" }
