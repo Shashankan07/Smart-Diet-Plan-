@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { signInWithPopup, signOut, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  signOut, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber,
+  signInWithRedirect,
+  getRedirectResult
+} from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -19,7 +26,8 @@ import {
   Download,
   Smartphone,
   Calendar,
-  ChevronLeft
+  ChevronLeft,
+  ArrowRight
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
@@ -573,21 +581,67 @@ const Landing = () => {
     }
   };
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    // Handle the result of a redirect login on return
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          const user = result.user;
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            lastLogin: serverTimestamp(),
+            subscriptionStatus: 'free'
+          }, { merge: true });
+        }
+      } catch (err: any) {
+        console.error("Redirect login error:", err);
+        setError(err.message || "Failed to complete redirect login.");
+      }
+    };
+    handleRedirectResult();
+  }, []);
+
   const handleLogin = async () => {
+    setError('');
+    setIsLoggingIn(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      // Check if we are on a mobile device or if popups are likely to fail
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
       
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        lastLogin: serverTimestamp(),
-        subscriptionStatus: 'free'
-      }, { merge: true });
-    } catch (err) {
-      console.error(err);
+      if (isMobile || isStandalone) {
+        // Use redirect for mobile/PWA
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        // Use popup for desktop
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+        
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          lastLogin: serverTimestamp(),
+          subscriptionStatus: 'free'
+        }, { merge: true });
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      // Fallback to redirect if popup is blocked
+      if (err.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -694,14 +748,25 @@ const Landing = () => {
             >
               <Button 
                 onClick={handleLogin} 
+                disabled={isLoggingIn}
                 className="w-full h-16 bg-[#181E04] text-white hover:bg-black rounded-[28px] text-base font-bold shadow-[0_15px_30px_-5px_rgba(0,0,0,0.2)] gap-3 transition-all hover:scale-105 active:scale-95"
               >
-                <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center p-1">
-                   <svg viewBox="0 0 24 24" className="w-full h-full"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                </div>
-                Continue with Google
-                <ChevronRight size={18} className="text-primary" />
+                {isLoggingIn ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <>
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center p-1">
+                       <svg viewBox="0 0 24 24" className="w-full h-full"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                    </div>
+                    Continue with Google
+                    <ChevronRight size={18} className="text-primary" />
+                  </>
+                )}
               </Button>
+
+              {error && (
+                <p className="text-[10px] font-bold text-red-500 text-center uppercase tracking-widest">{error}</p>
+              )}
 
               <Button 
                 onClick={() => setShowPhoneInput(true)}
@@ -933,7 +998,7 @@ function AppContent() {
             {activeTab === 'history' && <HistoryTab onUpgrade={() => setShowSubscriptionModal(true)} />}
             {activeTab === 'plan' && <MealPlanTab onScanTrigger={navigateToScanner} />}
             {activeTab === 'chat' && <AiCoachTab />}
-            {activeTab === 'profile' && <HealthSetupTab />}
+            {activeTab === 'profile' && <HealthSetupTab permissionsStatus={permissionsStatus} requestPermissions={requestPermissions} />}
             {activeTab === 'scanner' && <ScannerTab onComplete={() => setActiveTab('home')} />}
           </motion.div>
         </AnimatePresence>
@@ -962,7 +1027,7 @@ function AppContent() {
 }
 
 // --- Health Setup Tab ---
-const HealthSetupTab = () => {
+const HealthSetupTab = ({ permissionsStatus, requestPermissions }: { permissionsStatus: string, requestPermissions: () => void }) => {
   const { user, profile } = useAuth();
   const [formData, setFormData] = useState({
     age: '',
@@ -1135,6 +1200,23 @@ const HealthSetupTab = () => {
             Log Out
           </Button>
         </CardContent>
+      </Card>
+
+      <Card className="border-none bg-[#181E04] text-white rounded-[40px] overflow-hidden shadow-2xl p-8 space-y-6">
+        <div className="flex items-center justify-between">
+           <div className="space-y-1">
+             <h3 className="text-xl font-black tracking-tight uppercase">Smart Diet Portal</h3>
+             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">External Nutrition Resource</p>
+           </div>
+           <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => window.open('https://smart-diet-plan.vercel.app/', '_blank')}
+            className="rounded-xl h-10 border-white/20 hover:bg-white/10 text-white font-black text-[10px] uppercase"
+           >
+              Launch <ArrowRight size={14} className="ml-2" />
+           </Button>
+        </div>
       </Card>
 
       <InstallAppSection />

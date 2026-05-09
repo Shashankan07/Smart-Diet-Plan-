@@ -38,16 +38,19 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
     const note = `Sub: ${plan.name} (${userIdentifier})`;
     const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${plan.amount}&cu=INR&tn=${encodeURIComponent(note)}`;
     
-    // Check if we are in an iframe
-    const isInIframe = window.self !== window.top;
-    
-    if (isInIframe) {
-      // In an iframe, deep links usually fail. Inform the user.
-      console.warn("Deep linking might be blocked in preview mode.");
-    }
-
-    // Auto-redirect to UPI app
+    // Robust redirection for Android/Mobile
+    // 1. Try direct location change
     window.location.href = upiUrl;
+    
+    // 2. Try anchor click fallback (works better on some browsers)
+    const link = document.createElement('a');
+    link.href = upiUrl;
+    link.click();
+
+    // 3. Inform user about preview limits
+    if (window.self !== window.top) {
+      console.warn("UPI links are usually blocked in web previews. Please use 'Open in new tab'.");
+    }
   };
 
   const copyUpi = () => {
