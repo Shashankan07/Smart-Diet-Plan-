@@ -622,43 +622,44 @@ const Landing = () => {
           <motion.div 
             animate={{ 
               scale: [1, 1.2, 1],
-              opacity: [0.3, 0.6, 0.3]
+              opacity: [0.3, 0.6, 0.3],
+              rotate: [0, 90, 180, 270, 360]
             }}
-            transition={{ duration: 4, repeat: Infinity }}
-            className="absolute inset-0 bg-primary/20 rounded-full blur-[60px]"
+            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-primary/20 rounded-full blur-[80px]"
           ></motion.div>
 
           <div className="relative w-32 h-32 bg-white rounded-[44px] flex items-center justify-center shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] border border-white p-1 overflow-hidden">
             <div className="w-full h-full bg-[#181E04] rounded-[40px] flex items-center justify-center relative overflow-hidden">
-              {/* Character-like floating elements inside log */}
               <motion.div
                 animate={{ 
-                  y: [0, -5, 0],
-                  rotate: [0, 10, 0]
+                  y: [0, -8, 0],
+                  scale: [1, 1.1, 1]
                 }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute -bottom-2 -left-2 w-12 h-12 bg-primary/20 rounded-full blur-xl"
-              />
-              
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 3, repeat: Infinity }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               >
                 <Apple className="text-white w-12 h-12 relative z-10" />
               </motion.div>
             </div>
           </div>
 
-          {/* Floating Male-figure representative particle */}
+          {/* Floating Character Element */}
           <motion.div
              animate={{ 
-               y: [-10, 10, -10],
-               x: [0, 5, 0]
+               y: [-12, 12, -12],
+               rotate: [-5, 5, -5]
              }}
-             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-             className="absolute -top-4 -right-4 w-10 h-10 bg-white rounded-2xl shadow-lg border border-accent/10 flex items-center justify-center"
+             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+             className="absolute -top-6 -right-6 w-14 h-14 bg-white rounded-[20px] shadow-2xl border border-accent/10 flex flex-col items-center justify-center overflow-hidden"
           >
-             <UserIcon className="text-primary w-5 h-5" />
+             <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mb-1">
+                <UserIcon className="text-primary w-3.5 h-3.5" />
+             </div>
+             <div className="flex gap-0.5">
+                <motion.div animate={{ height: [2, 6, 2] }} transition={{ duration: 1, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
+                <motion.div animate={{ height: [4, 2, 4] }} transition={{ duration: 1.2, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
+                <motion.div animate={{ height: [3, 5, 3] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
+             </div>
           </motion.div>
         </motion.div>
         

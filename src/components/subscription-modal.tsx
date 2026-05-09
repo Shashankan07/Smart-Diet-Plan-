@@ -179,7 +179,7 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                           "flex items-center justify-center gap-2 w-full h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all",
                           plan.id === 'elite' ? "bg-primary text-white" : "bg-[#181E04] text-white"
                         )}>
-                          Unlock with Pay <Smartphone size={14} />
+                          Make Payment <Smartphone size={14} />
                         </div>
                       </div>
                     </motion.div>
@@ -201,44 +201,46 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                 </div>
               ) : (
                 <div className="space-y-8 py-4">
-                   <div className="bg-accent/5 rounded-[32px] p-6 border border-accent/10 space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary">
-                          <Smartphone size={24} />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#181E04]/40">Status</p>
-                          <p className="text-sm font-black text-[#181E04]">Waiting for UPI transfer...</p>
-                        </div>
+                   <div className="bg-accent/5 rounded-[32px] p-8 border border-accent/10 space-y-6 text-center">
+                      <div className="w-20 h-20 bg-[#5f259f]/10 rounded-[28px] flex items-center justify-center text-[#5f259f] mx-auto mb-2">
+                        <Smartphone size={32} className="animate-pulse" />
                       </div>
-                      <p className="text-[11px] leading-relaxed text-muted-foreground font-medium">
-                        If you have already made the payment of <span className="text-[#181E04] font-bold">{selectedPlan.price}</span>, click the button below to authorize your account.
-                      </p>
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-black text-[#181E04]">Payment Pending</h3>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Please complete the payment of <span className="text-[#181E04] font-bold">{selectedPlan.price}</span> using any UPI app.
+                        </p>
+                      </div>
                    </div>
 
-                   <Button 
-                    onClick={handleVerify}
-                    disabled={isVerifying}
-                    className="w-full h-16 bg-[#181E04] text-white rounded-[24px] font-black uppercase tracking-widest gap-2 shadow-xl"
+                   <div className="space-y-3">
+                     <Button 
+                      onClick={() => handlePlanSelect(selectedPlan)}
+                      className="w-full h-20 bg-[#5f259f] text-white rounded-[28px] font-black uppercase tracking-widest gap-3 shadow-xl hover:bg-[#4a1d7d] active:scale-95 transition-all text-sm"
+                     >
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                         <span className="text-[#5f259f] font-black text-xs">पे</span>
+                      </div>
+                      Pay with PhonePe / GPay
+                      <ArrowRight size={18} />
+                     </Button>
+
+                     <Button 
+                      onClick={handleVerify}
+                      disabled={isVerifying}
+                      variant="outline"
+                      className="w-full h-14 rounded-[24px] font-bold uppercase tracking-widest gap-2 border-2 text-[10px]"
+                     >
+                      {isVerifying ? <Loader2 className="animate-spin" /> : 'I have completed payment'}
+                     </Button>
+                   </div>
+
+                   <button 
+                     onClick={() => setSelectedPlan(null)}
+                     className="w-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-40 text-center hover:opacity-100"
                    >
-                    {isVerifying ? <Loader2 className="animate-spin" /> : 'Confirm & Activate'}
-                    <ArrowRight size={18} />
-                   </Button>
-
-                   <div className="flex flex-col gap-3">
-                      <button 
-                        onClick={() => handlePlanSelect(selectedPlan)}
-                        className="text-[10px] font-bold uppercase tracking-widest text-primary text-center hover:underline"
-                      >
-                         Retry Redirect to Payment App
-                      </button>
-                      <button 
-                        onClick={() => setSelectedPlan(null)}
-                        className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-40 text-center hover:opacity-100"
-                      >
-                         Change selected plan
-                      </button>
-                   </div>
+                      Change Selected Plan
+                   </button>
                 </div>
               )}
 
