@@ -253,6 +253,25 @@ const Dashboard = ({ onWaterLog, onScanTrigger, onViewHistory }: { onWaterLog: (
 
       <ManualFoodLog isOpen={showManualLog} onClose={() => setShowManualLog(false)} />
 
+      {/* Pending Approval Banner */}
+      {profile?.pendingApproval && !profile?.isPaid && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-2 mb-6 p-5 bg-blue-50 border border-blue-100 rounded-[32px] flex items-center gap-4 shadow-sm"
+        >
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
+            <Loader2 className="animate-spin" size={24} />
+          </div>
+          <div className="space-y-0.5">
+            <h3 className="text-sm font-black text-[#181E04] uppercase tracking-wider">Payment Verification</h3>
+            <p className="text-[10px] font-medium text-blue-600/80 leading-relaxed italic">
+              UTR Received. Your neural sync is in progress. Full access will activate automatically within 15-30 minutes.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -642,18 +661,21 @@ const Landing = () => {
     } catch (err: any) {
       console.error("Login Error:", err);
       
-      // If popup is blocked or fails, we provide a clearer action
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-        // Last resort: redirect. 
+      // Handle specific environment restrictions
+      if (err.code === 'auth/operation-not-supported-in-this-environment' || 
+          err.code === 'auth/popup-blocked' || 
+          err.code === 'auth/popup-closed-by-user') {
         try {
           await signInWithRedirect(auth, googleProvider);
         } catch (reErr: any) {
-          setError("Login window was blocked. Please enable popups or try again.");
+          setError(`Login blocked. Please open ${window.location.hostname} directly in a normal browser tab.`);
         }
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("Domain not authorized in Firebase. Ensure smart-diet-plan.vercel.app is added.");
       } else if (err.code === 'auth/network-request-failed') {
         setError("Network error. Please check your internet connection.");
       } else {
-        setError("Authentication failed. Use the 'Install App' button if you're in a browser.");
+        setError(`Auth Error (${err.code}): Open the site directly at smart-diet-plan.vercel.app`);
       }
     } finally {
       setIsLoggingIn(false);
