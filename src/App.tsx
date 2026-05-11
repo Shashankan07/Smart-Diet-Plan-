@@ -626,8 +626,8 @@ const Landing = () => {
     setError('');
     setIsLoggingIn(true);
     try {
-      // Use popup by default for all environments
-      // This is generally more reliable in keeping the auth state within the app's context
+      // Use popup by default. In many modern Android WebViews (Capacitor), 
+      // this opens a secure system browser tab that returns to the app.
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
@@ -640,22 +640,20 @@ const Landing = () => {
         subscriptionStatus: 'free'
       }, { merge: true });
     } catch (err: any) {
-      console.error("Login initial error:", err);
+      console.error("Login Error:", err);
       
-      // If popup is blocked, attempt redirect as a last resort
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+      // If popup is blocked or fails, we provide a clearer action
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+        // Last resort: redirect. 
         try {
           await signInWithRedirect(auth, googleProvider);
-        } catch (redirectErr: any) {
-          setError("Login process interrupted. Please allow popups or use a standard mobile browser.");
+        } catch (reErr: any) {
+          setError("Login window was blocked. Please enable popups or try again.");
         }
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Network error. Please check your internet connection.");
       } else {
-        // Handle common Firebase errors with helpful messages
-        let message = "Login failed. Please try again.";
-        if (err.code === 'auth/network-request-failed') message = "Network error. Check your internet connection.";
-        if (err.code === 'auth/internal-error') message = "Firebase internal error. Please check your config.";
-        
-        setError(message);
+        setError("Authentication failed. Use the 'Install App' button if you're in a browser.");
       }
     } finally {
       setIsLoggingIn(false);
@@ -904,7 +902,7 @@ function AppContent() {
 
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
   const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app';
+  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app' || window.location.hostname === 'localhost';
   const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
 
   useEffect(() => {
@@ -1220,35 +1218,38 @@ const HealthSetupTab = ({ permissionsStatus, requestPermissions }: { permissions
         </CardContent>
       </Card>
 
-      <Card className="border-none bg-[#181E04] text-white rounded-[40px] overflow-hidden shadow-2xl p-8 space-y-6">
-        <div className="flex items-center justify-between">
+      <Card className="border-none bg-gradient-to-br from-[#181E04] to-[#0A0D02] text-white rounded-[40px] overflow-hidden shadow-2xl p-8 space-y-6 relative border border-white/5">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="flex items-center justify-between relative z-10">
            <div className="space-y-1">
              <div className="flex items-center gap-2">
                <h3 className="text-xl font-black tracking-tight uppercase">Diet Blueprint</h3>
-               {isAdmin && (
-                 <motion.div 
-                   animate={{ scale: [1, 1.2, 1] }} 
-                   transition={{ repeat: Infinity, duration: 2 }}
-                   className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]" 
-                 />
-               )}
+               <div className="px-2 py-0.5 bg-primary/20 rounded-md flex items-center gap-1">
+                 <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                 <span className="text-[8px] font-bold text-primary uppercase tracking-widest">Production Link</span>
+               </div>
              </div>
-             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Linked: smart-diet-plan.vercel.app</p>
+             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Host: smart-diet-plan.vercel.app</p>
            </div>
            <Button 
             variant="outline" 
             size="sm" 
             onClick={() => window.open('https://smart-diet-plan.vercel.app/', '_blank')}
-            className="rounded-xl h-10 border-white/20 hover:bg-white/10 text-white font-black text-[10px] uppercase shadow-lg shadow-primary/5"
+            className="rounded-xl h-10 border-white/20 hover:bg-primary hover:text-black hover:border-primary text-white font-black text-[10px] uppercase transition-all"
            >
               Open Plan <ArrowRight size={14} className="ml-2" />
            </Button>
         </div>
-        {isAdmin && (
-          <div className="pt-2 border-t border-white/5">
-            <p className="text-[9px] font-bold text-primary/70 uppercase tracking-[0.2em] animate-pulse">Admin Neural Link Active • Unlimited Access Verified</p>
-          </div>
-        )}
+        <div className="flex gap-4 pt-2 border-t border-white/5 relative z-10">
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Status</span>
+             <span className="text-[10px] font-black text-primary uppercase">Active</span>
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Version</span>
+             <span className="text-[10px] font-black text-white uppercase">v2.4.0</span>
+           </div>
+        </div>
       </Card>
 
       <InstallAppSection />
@@ -1440,7 +1441,7 @@ const AiCoachTab = () => {
   const { profile, user } = useAuth();
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
   const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app';
+  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app' || window.location.hostname === 'localhost';
   const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
 
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([

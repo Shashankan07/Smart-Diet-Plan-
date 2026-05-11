@@ -3,6 +3,8 @@
   "appName": "NutriSense AI",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "https://smart-diet-plan.vercel.app",
+    "cleartext": true
   }
 }
