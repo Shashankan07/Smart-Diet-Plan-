@@ -671,7 +671,7 @@ const Landing = () => {
           setError(`Login blocked. Please open ${window.location.hostname} directly in a normal browser tab.`);
         }
       } else if (err.code === 'auth/unauthorized-domain') {
-        setError("Domain not authorized in Firebase. Ensure smart-diet-plan.vercel.app is added.");
+        setError("UNAUTHORIZED DOMAIN: Please add 'smart-diet-plan.vercel.app' to Authorized Domains in your Firebase Console.");
       } else if (err.code === 'auth/network-request-failed') {
         setError("Network error. Please check your internet connection.");
       } else {
@@ -901,7 +901,7 @@ const Landing = () => {
           transition={{ delay: 1, duration: 1 }}
           className="text-[9px] font-bold uppercase tracking-[0.3em] text-muted-foreground pt-8"
         >
-          Health Tracker v4.0.2 // Active Mode
+          Health Tracker v4.0.4 // Active Mode
         </motion.p>
       </div>
     </div>
