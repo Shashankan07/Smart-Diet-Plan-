@@ -19,6 +19,8 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
   const [isSuccess, setIsSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
+  const [utr, setUtr] = useState('');
+  const [utrError, setUtrError] = useState('');
   
   const upiId = '6363536914@ybl';
   const name = 'NutriSenseAI';
@@ -80,30 +82,31 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
   const handleVerify = async () => {
     if (!user || !selectedPlan) return;
     
+    if (!utr || utr.length < 12) {
+      setUtrError('Please enter the 12-digit Transaction ID (UTR)');
+      return;
+    }
+    setUtrError('');
     setIsVerifying(true);
     
     // Simulate payment verification delay
-    // In a real production setup, you would check a backend service that listens for Webhooks
     await new Promise(resolve => setTimeout(resolve, 3000));
 
     try {
-      // Update Firestore with the paid status
+      // Update Firestore with the UTR for admin approval
       await setDoc(doc(db, 'users', user.uid), {
         subscriptionStatus: selectedPlan.id,
         subscriptionAmount: selectedPlan.amount,
         subscriptionDate: serverTimestamp(),
-        isPaid: true,
-        trialExpires: null // End trial if they were on one
+        utr: utr,
+        isPaid: false, // Wait for admin to check UTR
+        pendingApproval: true,
+        trialExpires: null 
       }, { merge: true });
       
       setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        setSelectedPlan(null);
-        onClose();
-      }, 2500);
     } catch (error) {
-      console.error("Activation failed:", error);
+      console.error("Verification submission failed:", error);
     } finally {
       setIsVerifying(false);
     }
@@ -245,10 +248,16 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                    >
                      <CheckCircle2 size={48} />
                    </motion.div>
-                   <div className="space-y-2">
-                      <h3 className="text-2xl font-black text-[#181E04]">Network Activated</h3>
-                      <p className="text-sm font-medium text-muted-foreground">Neural sync complete. Welcome to the elite tier.</p>
+                   <div className="space-y-2 px-4">
+                      <h3 className="text-2xl font-black text-[#181E04]">UTR Submitted</h3>
+                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                        We're verifying your transaction ID: <span className="font-mono font-bold text-[#181E04]">{utr}</span>. 
+                        Your premium features will activate within 15-30 minutes.
+                      </p>
                    </div>
+                   <Button onClick={onClose} className="rounded-2xl h-12 bg-[#181E04] text-white px-8 uppercase font-black tracking-widest text-[10px]">
+                     Back to Analysis
+                   </Button>
                 </div>
               ) : (
                 <div className="space-y-6 pt-2 pb-4">
@@ -297,6 +306,30 @@ export const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) =
                          )}>
                            {copied ? <Check size={16} /> : <Copy size={16} />}
                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-[#181E04] ml-2">Enter Transaction ID (UTR)</label>
+                        <div className="relative">
+                          <input 
+                            type="text"
+                            placeholder="12-digit UTR Number"
+                            value={utr}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 12);
+                              setUtr(val);
+                            }}
+                            className={cn(
+                              "w-full h-14 bg-accent/5 border rounded-2xl px-5 font-mono text-sm font-bold transition-all outline-none",
+                              utrError ? "border-red-500 bg-red-50" : "border-accent/10 focus:border-primary focus:bg-white"
+                            )}
+                          />
+                          {utr.length === 12 && !utrError && (
+                            <CheckCircle size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" />
+                          )}
+                        </div>
+                        {utrError && <p className="text-[10px] font-bold text-red-500 ml-2">{utrError}</p>}
+                        <p className="text-[8px] font-medium text-muted-foreground ml-2 opacity-60">Usually found in payment history of GPay/PhonePe.</p>
                       </div>
 
                       <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">

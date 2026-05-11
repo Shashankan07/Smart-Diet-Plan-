@@ -17,6 +17,8 @@ export interface UserProfile {
   lastLogin?: { seconds: number; nanoseconds: number } | null;
   updatedAt?: { seconds: number; nanoseconds: number } | null;
   subscriptionStatus?: string;
+  isPaid?: boolean;
+  pendingApproval?: boolean;
 }
 
 interface AuthContextType {

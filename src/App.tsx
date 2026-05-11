@@ -901,7 +901,7 @@ function AppContent() {
   const [permissionsStatus, setPermissionsStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
 
   const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
-  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
+  const isSubscriber = (profile?.subscriptionStatus && profile.subscriptionStatus !== 'free' && profile.isPaid);
   const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app' || window.location.hostname === 'localhost';
   const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
 
