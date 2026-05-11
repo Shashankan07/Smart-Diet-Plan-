@@ -675,7 +675,8 @@ const Landing = () => {
       } else if (err.code === 'auth/network-request-failed') {
         setError("Network error. Please check your internet connection.");
       } else {
-        setError(`Auth Error (${err.code}): Open the site directly at smart-diet-plan.vercel.app`);
+        const details = err.message ? `: ${err.message}` : '';
+        setError(`Auth Error (${err.code})${details}`);
       }
     } finally {
       setIsLoggingIn(false);
@@ -802,7 +803,7 @@ const Landing = () => {
               </Button>
 
               {error && (
-                <p className="text-[10px] font-bold text-red-500 text-center uppercase tracking-widest">{error}</p>
+                <p className="text-[10px] font-bold text-red-500 text-center tracking-widest">{error}</p>
               )}
 
               <Button 
