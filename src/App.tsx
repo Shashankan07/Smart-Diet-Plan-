@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  signInWithPopup, 
-  signOut, 
-  RecaptchaVerifier, 
-  signInWithPhoneNumber,
-  signInWithRedirect,
-  getRedirectResult
-} from 'firebase/auth';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -26,23 +19,7 @@ import {
   Download,
   Smartphone,
   Calendar,
-  ChevronLeft,
-  ArrowRight,
-  TrendingUp,
-  Droplets,
-  Flame,
-  Target,
-  Clock,
-  LayoutDashboard,
-  Utensils,
-  Settings,
-  LogOut,
-  ShieldCheck,
-  Info,
-  Search,
-  ArrowLeft,
-  CheckCircle2,
-  History
+  ChevronLeft
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { nutritionModel, getDietCoachResponse } from '@/src/lib/gemini';
@@ -56,7 +33,6 @@ import { auth, googleProvider, db, OperationType, handleFirestoreError } from '@
 import { ManualFoodLog } from '@/src/components/manual-food-log';
 import { FoodScanner } from '@/src/components/food-scanner';
 import { AuthProvider, useAuth } from '@/src/lib/auth';
-import { SubscriptionModal } from '@/src/components/subscription-modal';
 
 // --- Shared Types & Logic ---
 export const calculateDailyTargets = (profile: { weight?: number | string; height?: number | string; age?: number | string; goal?: string; activityLevel?: string; gender?: string }) => {
@@ -252,25 +228,6 @@ const Dashboard = ({ onWaterLog, onScanTrigger, onViewHistory }: { onWaterLog: (
       </div>
 
       <ManualFoodLog isOpen={showManualLog} onClose={() => setShowManualLog(false)} />
-
-      {/* Pending Approval Banner */}
-      {profile?.pendingApproval && !profile?.isPaid && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-2 mb-6 p-5 bg-blue-50 border border-blue-100 rounded-[32px] flex items-center gap-4 shadow-sm"
-        >
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
-            <Loader2 className="animate-spin" size={24} />
-          </div>
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-black text-[#181E04] uppercase tracking-wider">Payment Verification</h3>
-            <p className="text-[10px] font-medium text-blue-600/80 leading-relaxed italic">
-              UTR Received. Your neural sync is in progress. Full access will activate automatically within 15-30 minutes.
-            </p>
-          </div>
-        </motion.div>
-      )}
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -553,100 +510,8 @@ const MacroArc = ({ label, current, target, color }: { label: string; current: n
 
 // --- Landing Page ---
 const Landing = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
-  const [showPhoneInput, setShowPhoneInput] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState('');
-
-  const setupRecaptcha = (containerId: string) => {
-    if ((window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier.clear();
-    }
-    (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-      size: 'invisible'
-    });
-  };
-
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSending(true);
-
-    try {
-      setupRecaptcha('recaptcha-container');
-      const verifier = (window as any).recaptchaVerifier;
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
-      setConfirmationResult(result);
-    } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Phone Auth is disabled. Go to Firebase Console > Authentication > Sign-in Method and ENABLE "Phone".');
-      } else {
-        setError(err.message || 'Failed to send code. Please try Google Login.');
-      }
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSending(true);
-
-    try {
-      const result = await confirmationResult.confirm(verificationCode);
-      const user = result.user;
-      
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        phoneNumber: user.phoneNumber,
-        lastLogin: serverTimestamp(),
-        subscriptionStatus: 'free'
-      }, { merge: true });
-    } catch (err: any) {
-      console.error(err);
-      setError('Invalid code');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  useEffect(() => {
-    // Handle the result of a redirect login on return
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          const user = result.user;
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            lastLogin: serverTimestamp(),
-            subscriptionStatus: 'free'
-          }, { merge: true });
-        }
-      } catch (err: any) {
-        console.error("Redirect login error:", err);
-        setError(err.message || "Failed to complete redirect login.");
-      }
-    };
-    handleRedirectResult();
-  }, []);
-
   const handleLogin = async () => {
-    setError('');
-    setIsLoggingIn(true);
     try {
-      // Use popup by default. In many modern Android WebViews (Capacitor), 
-      // this opens a secure system browser tab that returns to the app.
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
@@ -658,35 +523,13 @@ const Landing = () => {
         lastLogin: serverTimestamp(),
         subscriptionStatus: 'free'
       }, { merge: true });
-    } catch (err: any) {
-      console.error("Login Error:", err);
-      
-      // Handle specific environment restrictions
-      if (err.code === 'auth/operation-not-supported-in-this-environment' || 
-          err.code === 'auth/popup-blocked' || 
-          err.code === 'auth/popup-closed-by-user') {
-        try {
-          await signInWithRedirect(auth, googleProvider);
-        } catch (reErr: any) {
-          setError(`Login blocked. Please open ${window.location.hostname} directly in a normal browser tab.`);
-        }
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError("UNAUTHORIZED DOMAIN: Please add 'smart-diet-plan.vercel.app' to Authorized Domains in your Firebase Console.");
-      } else if (err.code === 'auth/network-request-failed') {
-        setError("Network error. Please check your internet connection.");
-      } else {
-        const details = err.message ? `: ${err.message}` : '';
-        setError(`Auth Error (${err.code})${details}`);
-      }
-    } finally {
-      setIsLoggingIn(false);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#FDFCFB] flex flex-col items-center justify-center p-8 overflow-hidden relative">
-      <div id="recaptcha-container"></div>
-      
       {/* Decorative Elements */}
       <motion.div 
         animate={{ 
@@ -707,201 +550,60 @@ const Landing = () => {
         className="absolute bottom-20 -right-10 w-80 h-80 bg-accent/30 rounded-full blur-3xl"
       />
 
-      <div className="relative z-10 flex flex-col items-center space-y-8 w-full max-w-sm">
+      <div className="relative z-10 flex flex-col items-center space-y-12">
         <motion.div 
           initial={{ scale: 0.8, opacity: 0, rotate: -15 }}
           animate={{ scale: 1, opacity: 1, rotate: 0 }}
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-          className="relative group mb-4"
+          className="relative group"
         >
-          {/* Animated Background Aura */}
-          <motion.div 
-            animate={{ 
-              scale: [1, 1.2, 1],
-              opacity: [0.3, 0.6, 0.3],
-              rotate: [0, 90, 180, 270, 360]
-            }}
-            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-primary/20 rounded-full blur-[80px]"
-          ></motion.div>
-
-          <div className="relative w-32 h-32 bg-white rounded-[44px] flex items-center justify-center shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] border border-white p-1 overflow-hidden">
-            <div className="w-full h-full bg-[#181E04] rounded-[40px] flex items-center justify-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-primary/20 rounded-full blur-[60px] opacity-50 group-hover:opacity-80 transition-opacity"></div>
+          <div className="relative w-36 h-36 bg-white rounded-[44px] flex items-center justify-center shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] border border-white p-1">
+            <div className="w-full h-full bg-[#181E04] rounded-[40px] flex items-center justify-center">
               <motion.div
-                animate={{ 
-                  y: [0, -8, 0],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 3, repeat: Infinity }}
               >
-                <Apple className="text-white w-12 h-12 relative z-10" />
+                <Apple className="text-white w-14 h-14" />
               </motion.div>
             </div>
           </div>
-
-          {/* Floating Character Element */}
-          <motion.div
-             animate={{ 
-               y: [-12, 12, -12],
-               rotate: [-5, 5, -5]
-             }}
-             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-             className="absolute -top-6 -right-6 w-14 h-14 bg-white rounded-[20px] shadow-2xl border border-accent/10 flex flex-col items-center justify-center overflow-hidden"
-          >
-             <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mb-1">
-                <UserIcon className="text-primary w-3.5 h-3.5" />
-             </div>
-             <div className="flex gap-0.5">
-                <motion.div animate={{ height: [2, 6, 2] }} transition={{ duration: 1, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
-                <motion.div animate={{ height: [4, 2, 4] }} transition={{ duration: 1.2, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
-                <motion.div animate={{ height: [3, 5, 3] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-1 bg-primary/40 rounded-full" />
-             </div>
-          </motion.div>
         </motion.div>
         
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.8 }}
-          className="space-y-4 text-center px-4"
+          className="space-y-4 max-w-sm text-center"
         >
-          <h1 className="text-4xl font-black tracking-tight text-[#181E04] leading-tight">
+          <h1 className="text-5xl font-black tracking-tight text-[#181E04] leading-tight">
             NutriSense <span className="text-primary font-light text-primary/40 underline decoration-2 underline-offset-8 italic px-1">AI</span>
           </h1>
-          <p className="text-muted-foreground text-xs leading-relaxed font-medium">
+          <p className="text-muted-foreground text-sm leading-relaxed font-medium px-4">
             Smart AI nutrition and health tracker.<br />
             Manage your daily goals with ease.
           </p>
         </motion.div>
 
-        <AnimatePresence mode="wait">
-          {!showPhoneInput ? (
-            <motion.div 
-              key="auth-options"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ delay: 0.6, duration: 0.8 }}
-              className="w-full space-y-4 pt-4"
-            >
-              <Button 
-                onClick={handleLogin} 
-                disabled={isLoggingIn}
-                className="w-full h-16 bg-[#181E04] text-white hover:bg-black rounded-[28px] text-base font-bold shadow-[0_15px_30px_-5px_rgba(0,0,0,0.2)] gap-3 transition-all hover:scale-105 active:scale-95"
-              >
-                {isLoggingIn ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <>
-                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center p-1">
-                       <svg viewBox="0 0 24 24" className="w-full h-full"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                    </div>
-                    Continue with Google
-                    <ChevronRight size={18} className="text-primary" />
-                  </>
-                )}
-              </Button>
-
-              {error && (
-                <p className="text-[10px] font-bold text-red-500 text-center tracking-widest">{error}</p>
-              )}
-
-              <Button 
-                onClick={() => setShowPhoneInput(true)}
-                variant="outline"
-                className="w-full h-16 bg-white text-[#181E04] hover:bg-accent/5 rounded-[28px] text-base font-bold border-2 border-accent/10 gap-3 transition-all hover:scale-105 active:scale-95"
-              >
-                <Smartphone size={20} className="text-primary" />
-                Mobile Phone Login
-                <ChevronRight size={18} className="opacity-20" />
-              </Button>
-            </motion.div>
-          ) : !confirmationResult ? (
-            <motion.div 
-              key="phone-input"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              className="w-full space-y-4 pt-4"
-            >
-               <div className="space-y-1">
-                 <Label className="text-[10px] font-black uppercase tracking-widest text-[#181E04]/60 ml-4">Phone Number</Label>
-                 <Input 
-                   type="tel" 
-                   placeholder="+91 00000 00000"
-                   value={phoneNumber}
-                   onChange={(e) => setPhoneNumber(e.target.value)}
-                   className="h-16 rounded-[24px] border-2 border-accent/10 px-6 font-bold text-lg focus:border-primary focus:ring-primary/20"
-                 />
-               </div>
-               
-               {error && <p className="text-[10px] font-bold text-red-500 text-center uppercase tracking-widest">{error}</p>}
-
-               <div className="flex gap-3">
-                 <Button 
-                   onClick={() => setShowPhoneInput(false)}
-                   variant="ghost"
-                   className="h-16 w-16 rounded-[24px] bg-accent/5 shrink-0"
-                 >
-                   <ChevronLeft size={24} />
-                 </Button>
-                 <Button 
-                   onClick={handlePhoneSubmit}
-                   disabled={isSending || phoneNumber.length < 10}
-                   className="flex-1 h-16 bg-[#181E04] text-white rounded-[24px] font-black uppercase tracking-widest shadow-xl shadow-[#181E04]/20"
-                 >
-                   {isSending ? <Loader2 className="animate-spin" /> : 'Send OTP'}
-                 </Button>
-               </div>
-            </motion.div>
-          ) : (
-            <motion.div 
-              key="otp-input"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              className="w-full space-y-4 pt-4"
-            >
-               <div className="space-y-1 text-center mb-6">
-                 <h3 className="text-lg font-black tracking-tight text-[#181E04]">Verification needed</h3>
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sent to {phoneNumber}</p>
-               </div>
-
-               <Input 
-                 placeholder="6-digit code"
-                 value={verificationCode}
-                 onChange={(e) => setVerificationCode(e.target.value)}
-                 className="h-20 text-center text-4xl font-black tracking-[0.5em] rounded-[32px] border-2 border-accent/10 focus:border-primary focus:ring-primary/20"
-                 maxLength={6}
-               />
-               
-               {error && <p className="text-[10px] font-bold text-red-500 text-center uppercase tracking-widest">{error}</p>}
-
-               <Button 
-                 onClick={handleCodeSubmit}
-                 disabled={isSending || verificationCode.length < 6}
-                 className="w-full h-16 bg-primary text-white rounded-[28px] font-black uppercase tracking-widest shadow-xl shadow-primary/20"
-               >
-                 {isSending ? <Loader2 className="animate-spin" /> : 'Authorize Access'}
-               </Button>
-
-               <button 
-                 onClick={() => setConfirmationResult(null)}
-                 className="w-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-40 hover:opacity-100 transition-opacity"
-               >
-                 Change Number
-               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.8 }}
+          className="w-full max-w-xs pt-8"
+        >
+          <Button onClick={handleLogin} className="w-full h-18 bg-[#181E04] text-white hover:bg-black rounded-[32px] text-lg font-bold shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] gap-3 transition-all hover:scale-105 active:scale-95">
+            Initialize Access
+            <ChevronRight size={20} className="text-primary" />
+          </Button>
+        </motion.div>
 
         <motion.p 
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.4 }}
           transition={{ delay: 1, duration: 1 }}
-          className="text-[9px] font-bold uppercase tracking-[0.3em] text-muted-foreground pt-8"
+          className="text-[9px] font-bold uppercase tracking-[0.3em] text-muted-foreground"
         >
-          Health Tracker v4.0.4 // Active Mode
+          Health Tracker v4.0.2 // Active Mode
         </motion.p>
       </div>
     </div>
@@ -918,62 +620,10 @@ export default function App() {
 }
 
 function AppContent() {
-  const { user, loading, profile } = useAuth();
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [permissionsStatus, setPermissionsStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
 
-  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
-  const isSubscriber = (profile?.subscriptionStatus && profile.subscriptionStatus !== 'free' && profile.isPaid);
-  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app' || window.location.hostname === 'localhost';
-  const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
-
-  useEffect(() => {
-    // Check permissions on mount
-    const checkPermissions = async () => {
-      try {
-        if ('navigator' in window && 'permissions' in navigator) {
-          const res = await navigator.permissions.query({ name: 'camera' as any });
-          setPermissionsStatus(res.state as any);
-          
-          res.onchange = () => {
-            setPermissionsStatus(res.state as any);
-          };
-        }
-      } catch (e) {
-        console.warn('Navigator permissions check not supported');
-        setPermissionsStatus('granted'); // Fallback for browsers/environments that don't support query
-      }
-    };
-    checkPermissions();
-  }, []);
-
-  const requestPermissions = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(track => track.stop());
-      setPermissionsStatus('granted');
-    } catch (err) {
-      console.error('Permission request failed:', err);
-      setPermissionsStatus('denied');
-    }
-  };
-
-  const navigateToScanner = () => {
-    if (hasFullAccess) {
-      setActiveTab('scanner');
-    } else {
-      setShowSubscriptionModal(true);
-    }
-  };
-
-  const handleTabChange = (tab: string) => {
-    if (tab === 'chat' && !hasFullAccess) {
-      setShowSubscriptionModal(true);
-      return;
-    }
-    setActiveTab(tab);
-  };
+  const navigateToScanner = () => setActiveTab('scanner');
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -987,25 +637,6 @@ function AppContent() {
   );
 
   if (!user) return <Landing />;
-
-  if (permissionsStatus === 'denied') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white p-8">
-        <div className="text-center space-y-6 max-w-sm">
-          <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
-            <Camera size={48} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-[#181E04]">Permissions Required</h2>
-            <p className="text-sm text-muted-foreground">NutriSense AI needs camera access to scan food and provide accurate insights. Please enable it in your device settings.</p>
-          </div>
-          <Button onClick={requestPermissions} className="w-full h-14 bg-[#181E04] text-white rounded-2xl font-bold uppercase tracking-widest">
-            Grant Access
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const handleWaterLog = async (amountMl: number = 250) => {
     try {
@@ -1034,31 +665,30 @@ function AppContent() {
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
             {activeTab === 'home' && <Dashboard onWaterLog={handleWaterLog} onScanTrigger={navigateToScanner} onViewHistory={() => setActiveTab('history')} />}
-            {activeTab === 'history' && <HistoryTab onUpgrade={() => setShowSubscriptionModal(true)} />}
+            {activeTab === 'history' && <HistoryTab />}
             {activeTab === 'plan' && <MealPlanTab onScanTrigger={navigateToScanner} />}
             {activeTab === 'chat' && <AiCoachTab />}
-            {activeTab === 'profile' && <HealthSetupTab permissionsStatus={permissionsStatus} requestPermissions={requestPermissions} />}
+            {activeTab === 'profile' && <HealthSetupTab />}
             {activeTab === 'scanner' && <ScannerTab onComplete={() => setActiveTab('home')} />}
           </motion.div>
         </AnimatePresence>
       </main>
 
       <ManualFoodLog isOpen={false} onClose={() => {}} />
-      <SubscriptionModal isOpen={showSubscriptionModal} onClose={() => setShowSubscriptionModal(false)} />
 
 
       {/* Modern Bottom Navigation */}
       <footer className="fixed bottom-0 left-0 right-0 p-6 z-50 pointer-events-none">
         <nav className="max-w-md mx-auto bg-white/80 backdrop-blur-3xl border border-border/50 flex justify-around items-center p-2.5 rounded-[40px] shadow-[0_20px_60px_-15px_rgba(24,30,4,0.1)] pointer-events-auto">
-          <NavButton active={activeTab === 'home'} onClick={() => handleTabChange('home')} icon={<Activity size={18} />} label="Home" />
-          <NavButton active={activeTab === 'plan'} onClick={() => handleTabChange('plan')} icon={<ChefHat size={18} />} label="Meals" />
-          <NavButton active={activeTab === 'scanner'} onClick={navigateToScanner} icon={<Camera size={18} />} label="Scan" />
+          <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<Activity size={18} />} label="Home" />
+          <NavButton active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<ChefHat size={18} />} label="Meals" />
+          <NavButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<Camera size={18} />} label="Scan" />
           <div className="w-8 h-8 flex items-center justify-center text-primary/30">
             <Apple size={20} />
           </div>
-          <NavButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={<Calendar size={18} />} label="Hist" />
-          <NavButton active={activeTab === 'chat'} onClick={() => handleTabChange('chat')} icon={<MessageSquare size={18} />} label="Coach" />
-          <NavButton active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<UserIcon size={18} />} label="Prof" />
+          <NavButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<Calendar size={18} />} label="Hist" />
+          <NavButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} icon={<MessageSquare size={18} />} label="Coach" />
+          <NavButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<UserIcon size={18} />} label="Prof" />
         </nav>
       </footer>
     </div>
@@ -1066,7 +696,7 @@ function AppContent() {
 }
 
 // --- Health Setup Tab ---
-const HealthSetupTab = ({ permissionsStatus, requestPermissions }: { permissionsStatus: string, requestPermissions: () => void }) => {
+const HealthSetupTab = () => {
   const { user, profile } = useAuth();
   const [formData, setFormData] = useState({
     age: '',
@@ -1241,66 +871,7 @@ const HealthSetupTab = ({ permissionsStatus, requestPermissions }: { permissions
         </CardContent>
       </Card>
 
-      <Card className="border-none bg-gradient-to-br from-[#181E04] to-[#0A0D02] text-white rounded-[40px] overflow-hidden shadow-2xl p-8 space-y-6 relative border border-white/5">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="flex items-center justify-between relative z-10">
-           <div className="space-y-1">
-             <div className="flex items-center gap-2">
-               <h3 className="text-xl font-black tracking-tight uppercase">Diet Blueprint</h3>
-               <div className="px-2 py-0.5 bg-primary/20 rounded-md flex items-center gap-1">
-                 <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-                 <span className="text-[8px] font-bold text-primary uppercase tracking-widest">Production Link</span>
-               </div>
-             </div>
-             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Host: smart-diet-plan.vercel.app</p>
-           </div>
-           <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => window.open('https://smart-diet-plan.vercel.app/', '_blank')}
-            className="rounded-xl h-10 border-white/20 hover:bg-primary hover:text-black hover:border-primary text-white font-black text-[10px] uppercase transition-all"
-           >
-              Open Plan <ArrowRight size={14} className="ml-2" />
-           </Button>
-        </div>
-        <div className="flex gap-4 pt-2 border-t border-white/5 relative z-10">
-           <div className="flex flex-col">
-             <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Status</span>
-             <span className="text-[10px] font-black text-primary uppercase">Active</span>
-           </div>
-           <div className="flex flex-col">
-             <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Version</span>
-             <span className="text-[10px] font-black text-white uppercase">v2.4.0</span>
-           </div>
-        </div>
-      </Card>
-
       <InstallAppSection />
-
-      <Card className="border-none bg-primary/10 rounded-[32px] overflow-hidden shadow-sm p-6 space-y-4">
-        <div className="flex items-center justify-between">
-           <div className="flex items-center gap-3">
-              <div className="p-3 bg-white rounded-2xl">
-                <Camera className="text-primary" size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-foreground">Device Access</h3>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                   {permissionsStatus === 'granted' ? '✅ System Ready' : '⚠️ Setup Required'}
-                </p>
-              </div>
-           </div>
-           {permissionsStatus !== 'granted' && (
-             <Button 
-               size="sm" 
-               onClick={requestPermissions}
-               className="rounded-xl h-10 px-4 bg-[#181E04] text-white font-black text-[10px] uppercase"
-             >
-                Authorize
-             </Button>
-           )}
-        </div>
-      </Card>
 
       <Card className="border-none bg-accent/20 rounded-[32px] overflow-hidden shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-3">
@@ -1461,17 +1032,12 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean; onClick:
   </button>
 );
 const AiCoachTab = () => {
-  const { profile, user } = useAuth();
-  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
-  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const isLinkedDomain = window.location.hostname === 'smart-diet-plan.vercel.app' || window.location.hostname === 'localhost';
-  const hasFullAccess = isAdmin || isSubscriber || isLinkedDomain;
-
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     { role: 'ai', text: "Bio-logical interface online. Ready to optimize your nutritional intake. What's on your mind?" }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const { profile } = useAuth();
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1715,12 +1281,8 @@ const ScannerTab = ({ onComplete }: { onComplete: () => void }) => {
   );
 };
 
-const HistoryTab = ({ onUpgrade }: { onUpgrade: () => void }) => {
-  const { user, profile } = useAuth();
-  const isAdmin = user?.email === 'shashankanshashankan16@gmail.com';
-  const isSubscriber = profile?.subscriptionStatus && profile.subscriptionStatus !== 'free';
-  const hasFullAccess = isAdmin || isSubscriber;
-
+const HistoryTab = () => {
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date(new Date().setDate(new Date().getDate() - 1)));
   const [mealLogs, setMealLogs] = useState<any[]>([]);
   const [waterLogs, setWaterLogs] = useState<any[]>([]);
@@ -1770,22 +1332,8 @@ const HistoryTab = ({ onUpgrade }: { onUpgrade: () => void }) => {
   const changeDate = (days: number) => {
     const nextDate = new Date(selectedDate);
     nextDate.setDate(nextDate.getDate() + days);
-    
-    // Check for future dates
+    // Don't allow future dates here for history
     if (nextDate > new Date()) return;
-
-    // Check for history restriction (2 days for free users)
-    if (!hasFullAccess) {
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      twoDaysAgo.setHours(0, 0, 0, 0);
-      
-      if (nextDate < twoDaysAgo) {
-        onUpgrade();
-        return;
-      }
-    }
-
     setSelectedDate(nextDate);
   };
 

@@ -1,9 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  GoogleAuthProvider,
-  setPersistence,
-  browserLocalPersistence
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -14,13 +12,8 @@ import firebaseConfig from '@/firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-
-// Help with mobile/WebView redirect persistence
-setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence failed:", err));
-
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
   CREATE = 'create',
